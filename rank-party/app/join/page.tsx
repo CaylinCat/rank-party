@@ -1,23 +1,42 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { setPlayerSession } from "@/lib/playerSession";
 
 export default function JoinPage() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function joinGame() {
-    const { data: game, error } = await supabase
+    if (!code.trim() || !name.trim()) {
+      setError("Enter a lobby code and your name.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const { data: game, error: gameError } = await supabase
       .from("games")
       .select("*")
       .eq("lobby_code", code.toUpperCase())
       .single();
 
-    if (error || !game) {
-      alert("Lobby not found");
+    if (gameError || !game) {
+      setError("Lobby not found.");
+      setLoading(false);
+      return;
+    }
+
+    if (game.status === "active" || game.status === "finished") {
+      setError("This game has already started.");
+      setLoading(false);
       return;
     }
 
@@ -25,7 +44,7 @@ export default function JoinPage() {
       .from("players")
       .insert({
         game_id: game.id,
-        name,
+        name: name.trim(),
         is_host: false,
       })
       .select()
@@ -33,12 +52,12 @@ export default function JoinPage() {
 
     if (insertError || !player) {
       console.error(insertError);
-      alert(insertError?.message ?? "Failed to join lobby");
+      setError(insertError?.message ?? "Failed to join lobby.");
+      setLoading(false);
       return;
     }
 
-    localStorage.setItem("playerId", player.id);
-
+    setPlayerSession(player.id, game.id, false);
     router.push(`/lobby/${code.toUpperCase()}`);
   }
 
@@ -52,6 +71,7 @@ export default function JoinPage() {
           placeholder="Code (e.g. ABCD)"
           value={code}
           onChange={(e) => setCode(e.target.value)}
+          disabled={loading}
         />
 
         <input
@@ -59,14 +79,22 @@ export default function JoinPage() {
           placeholder="Your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          disabled={loading}
         />
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         <button
           onClick={joinGame}
-          className="w-full bg-black text-white p-2 rounded"
+          disabled={loading}
+          className="w-full bg-black text-white p-2 rounded disabled:opacity-50"
         >
-          Join
+          {loading ? "Joining..." : "Join"}
         </button>
+
+        <Link href="/" className="block text-sm text-gray-600 hover:underline">
+          Back home
+        </Link>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getPlayerId, setPlayerSession } from "@/lib/playerSession";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type Player = {
@@ -13,35 +14,74 @@ type Player = {
 
 export default function LobbyPage() {
   const params = useParams();
+  const router = useRouter();
   const code = (params.code as string).toUpperCase();
   const [players, setPlayers] = useState<Player[]>([]);
+  const [isCurrentHost, setIsCurrentHost] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
 
     async function init() {
-      const { data: game } = await supabase
+      setLoading(true);
+      setError(null);
+
+      const { data: game, error: gameError } = await supabase
         .from("games")
         .select("*")
         .eq("lobby_code", code)
         .single();
 
-      if (!game || cancelled) return;
+      if (gameError || !game) {
+        if (!cancelled) {
+          setError("Lobby not found.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (game.status === "active" || game.status === "finished") {
+        if (!cancelled) {
+          router.push(`/game/${code}`);
+        }
+        return;
+      }
 
       const gameId = game.id;
 
-      const { data: playersData } = await supabase
+      const { data: playersData, error: playersError } = await supabase
         .from("players")
         .select("*")
         .eq("game_id", gameId);
 
       if (cancelled) return;
 
-      setPlayers(playersData || []);
+      if (playersError) {
+        setError(playersError.message);
+        setLoading(false);
+        return;
+      }
+
+      const playerList = playersData || [];
+      setPlayers(playerList);
+
+      const playerId = getPlayerId();
+      const me = playerList.find((p) => p.id === playerId);
+      if (me) {
+        setPlayerSession(me.id, gameId, me.is_host);
+        setIsCurrentHost(me.is_host);
+      } else {
+        setIsCurrentHost(false);
+      }
+
+      setLoading(false);
 
       channel = supabase
-        .channel("players-room")
+        .channel(`players-room-${gameId}`)
         .on(
           "postgres_changes",
           {
@@ -52,6 +92,24 @@ export default function LobbyPage() {
           },
           (payload) => {
             setPlayers((prev) => [...prev, payload.new as Player]);
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "games",
+            filter: `id=eq.${gameId}`,
+          },
+          (payload) => {
+            const updated = payload.new as { status?: string };
+            if (
+              updated.status === "active" ||
+              updated.status === "finished"
+            ) {
+              router.push(`/game/${code}`);
+            }
           }
         )
         .subscribe();
@@ -65,16 +123,34 @@ export default function LobbyPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [code]);
+  }, [code, router]);
 
   async function startGame() {
-    const { data: game } = await supabase
+    if (!isCurrentHost) {
+      setError("Only the host can start the game.");
+      return;
+    }
+
+    const playerId = getPlayerId();
+    if (!playerId) {
+      setError("Session expired. Create or join a lobby again.");
+      return;
+    }
+
+    setStarting(true);
+    setError(null);
+
+    const { data: game, error: gameError } = await supabase
       .from("games")
       .select("*")
       .eq("lobby_code", code)
       .single();
 
-    if (!game) return;
+    if (gameError || !game) {
+      setError("Lobby not found.");
+      setStarting(false);
+      return;
+    }
 
     const items = [
       "Bob is cool",
@@ -89,7 +165,7 @@ export default function LobbyPage() {
       "This game is chaotic",
     ];
 
-    await supabase.from("items").insert(
+    const { error: itemsError } = await supabase.from("items").insert(
       items.map((text, i) => ({
         game_id: game.id,
         text,
@@ -97,13 +173,46 @@ export default function LobbyPage() {
       }))
     );
 
-    await supabase
+    if (itemsError) {
+      console.error(itemsError);
+      setError(itemsError.message);
+      setStarting(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
       .from("games")
       .update({
-        phase: "showing",
+        phase: "voting",
+        status: "active",
         current_item_index: 0,
       })
       .eq("id", game.id);
+
+    if (updateError) {
+      console.error(updateError);
+      setError(updateError.message);
+      setStarting(false);
+      return;
+    }
+
+    router.push(`/game/${code}`);
+  }
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <p>Loading lobby...</p>
+      </div>
+    );
+  }
+
+  if (error && players.length === 0) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
   }
 
   return (
@@ -121,12 +230,19 @@ export default function LobbyPage() {
           ))}
         </ul>
 
-        <button
-          className="px-4 py-2 bg-green-600 text-white rounded"
-          onClick={startGame}
-        >
-          Start Game
-        </button>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        {isCurrentHost ? (
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+            onClick={startGame}
+            disabled={starting}
+          >
+            {starting ? "Starting..." : "Start Game"}
+          </button>
+        ) : (
+          <p className="text-sm text-gray-500">Waiting for host to start...</p>
+        )}
       </div>
     </div>
   );
