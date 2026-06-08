@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { calculateResults } from "@/lib/calculateResults";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export default function GamePage() {
   const params = useParams();
@@ -11,48 +13,86 @@ export default function GamePage() {
   const [game, setGame] = useState<any>(null);
   const [item, setItem] = useState<any>(null);
   const [vote, setVote] = useState<number | null>(null);
+  const [avg, setAvg] = useState(0);
+  const [distribution, setDistribution] = useState<Record<number, number>>({});
+
+  const loadResults = useCallback(async (itemId: string) => {
+    const { data: votes } = await supabase
+      .from("votes")
+      .select("*")
+      .eq("item_id", itemId);
+
+    const results = calculateResults(votes || []);
+    setAvg(results.avg);
+    setDistribution(results.distribution);
+  }, []);
+
+  const load = useCallback(async () => {
+    const { data: g, error: gameError } = await supabase
+      .from("games")
+      .select("*")
+      .eq("lobby_code", code)
+      .single();
+
+    if (gameError) {
+      console.error(gameError);
+      return null;
+    }
+
+    if (!g) return null;
+
+    setGame(g);
+
+    const { data: items } = await supabase
+      .from("items")
+      .select("*")
+      .eq("game_id", g.id)
+      .order("round_index");
+
+    const currentItem = items?.[g.current_item_index ?? 0] ?? null;
+    setItem(currentItem);
+
+    if (g.phase === "results" && currentItem) {
+      await loadResults(currentItem.id);
+    }
+
+    return g;
+  }, [code, loadResults]);
 
   useEffect(() => {
     let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    async function load() {
-      const { data: g } = await supabase
-        .from("games")
-        .select("*")
-        .eq("lobby_code", code)
-        .single();
-
+    async function init() {
+      const g = await load();
       if (!g || cancelled) return;
 
-      setGame(g);
-
-      const { data: items } = await supabase
-        .from("items")
-        .select("*")
-        .eq("game_id", g.id)
-        .order("round_index");
-
-      if (cancelled) return;
-
-      setItem(items?.[g.current_item_index ?? 0]);
+      channel = supabase
+        .channel(`game-${code}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "games",
+            filter: `id=eq.${g.id}`,
+          },
+          () => {
+            load();
+          }
+        )
+        .subscribe();
     }
 
-    load();
-
-    const channel = supabase
-      .channel("game-room")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "games" },
-        () => load()
-      )
-      .subscribe();
+    init();
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
-  }, [code]);
+  }, [code, load]);
 
   async function submitVote(rank: number) {
     if (!game || !item) return;
@@ -79,7 +119,46 @@ export default function GamePage() {
     }
   }
 
-  if (!item) return <div>Loading...</div>;
+  async function showResults() {
+    if (!game || !item) return;
+
+    const { error } = await supabase
+      .from("games")
+      .update({ phase: "results" })
+      .eq("id", game.id);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    setGame({ ...game, phase: "results" });
+    await loadResults(item.id);
+  }
+
+  if (!game || !item) return <div>Loading...</div>;
+
+  if (game.phase === "results") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center">
+        <div className="space-y-4">
+          <h1 className="text-3xl font-bold">{item.text}</h1>
+
+          <p>Average: {avg.toFixed(2)} / 10</p>
+
+          <div className="space-y-1">
+            {Object.entries(distribution).map(([rank, count]) => (
+              <div key={rank} className="flex gap-2 items-center">
+                <span className="w-4">{rank}:</span>
+                <div className="bg-black h-4" style={{ width: count * 10 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col items-center justify-center space-y-6">
@@ -98,6 +177,13 @@ export default function GamePage() {
           </button>
         ))}
       </div>
+
+      <button
+        onClick={showResults}
+        className="px-4 py-2 bg-blue-600 text-white rounded"
+      >
+        Show Results
+      </button>
     </div>
   );
 }
