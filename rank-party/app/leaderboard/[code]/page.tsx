@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 type LeaderboardEntry = {
   id: string;
+  item_id: string;
   position: number;
   average_score: number;
   items: { text: string } | null;
@@ -37,7 +38,7 @@ export default function LeaderboardPage() {
 
       const { data, error: entriesError } = await supabase
         .from("leaderboard_entries")
-        .select("id, position, average_score, items(text)")
+        .select("id, item_id, position, average_score, items(text)")
         .eq("game_id", game.id)
         .order("position", { ascending: true });
 
