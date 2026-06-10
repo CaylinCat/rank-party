@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { setPlayerSession } from "@/lib/playerSession";
+import { fetchGameByCode, isGameJoinable } from "@/lib/api/games";
+import { joinPlayer } from "@/lib/api/players";
+import { PageShell } from "@/components/PageShell";
 
 export default function JoinPage() {
   const router = useRouter();
@@ -22,11 +24,7 @@ export default function JoinPage() {
     setLoading(true);
     setError(null);
 
-    const { data: game, error: gameError } = await supabase
-      .from("games")
-      .select("*")
-      .eq("lobby_code", code.toUpperCase())
-      .single();
+    const { data: game, error: gameError } = await fetchGameByCode(code);
 
     if (gameError || !game) {
       setError("Lobby not found.");
@@ -34,21 +32,16 @@ export default function JoinPage() {
       return;
     }
 
-    if (game.status === "active" || game.status === "finished") {
+    if (!isGameJoinable(game.status)) {
       setError("This game has already started.");
       setLoading(false);
       return;
     }
 
-    const { data: player, error: insertError } = await supabase
-      .from("players")
-      .insert({
-        game_id: game.id,
-        name: name.trim(),
-        is_host: false,
-      })
-      .select()
-      .single();
+    const { data: player, error: insertError } = await joinPlayer(
+      game.id,
+      name.trim()
+    );
 
     if (insertError || !player) {
       console.error(insertError);
@@ -62,7 +55,7 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <PageShell>
       <div className="space-y-3 w-72">
         <h1 className="text-2xl font-bold">Join Lobby</h1>
 
@@ -96,6 +89,6 @@ export default function JoinPage() {
           Back home
         </Link>
       </div>
-    </div>
+    </PageShell>
   );
 }

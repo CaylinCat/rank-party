@@ -1,14 +1,8 @@
 import { supabase } from "./supabase";
 import { findPosition } from "./findPosition";
-
-type Game = {
-  id: string;
-  current_item_index: number;
-};
-
-type Item = {
-  id: string;
-};
+import { calculateResults } from "./calculateResults";
+import { ROUND_COUNT } from "./constants";
+import type { Game, Item } from "./types";
 
 export async function saveRoundPlacement(game: Game, item: Item) {
   const { data: existing } = await supabase
@@ -23,12 +17,7 @@ export async function saveRoundPlacement(game: Game, item: Item) {
       .select("*")
       .eq("item_id", item.id);
 
-    const votesList = votes || [];
-    const avg =
-      votesList.length > 0
-        ? votesList.reduce((sum, v) => sum + v.rank, 0) / votesList.length
-        : 0;
-
+    const { avg } = calculateResults(votes || []);
     const targetPosition = Math.round(avg);
 
     const { data: entries } = await supabase
@@ -57,7 +46,8 @@ export async function saveRoundPlacement(game: Game, item: Item) {
   const { error: updateError } = await supabase
     .from("games")
     .update({ phase: "placement" })
-    .eq("id", game.id);
+    .eq("id", game.id)
+    .eq("phase", "results");
 
   if (updateError) {
     console.error(updateError);
@@ -70,14 +60,12 @@ export async function saveRoundPlacement(game: Game, item: Item) {
 export async function advanceToNextRound(game: Game) {
   const nextIndex = game.current_item_index + 1;
 
-  if (nextIndex >= 10) {
+  if (nextIndex >= ROUND_COUNT) {
     const { error } = await supabase
       .from("games")
-      .update({
-        status: "finished",
-        phase: "finished",
-      })
-      .eq("id", game.id);
+      .update({ status: "finished", phase: "finished" })
+      .eq("id", game.id)
+      .eq("phase", "placement");
 
     if (error) {
       console.error(error);
@@ -86,11 +74,9 @@ export async function advanceToNextRound(game: Game) {
   } else {
     const { error } = await supabase
       .from("games")
-      .update({
-        current_item_index: nextIndex,
-        phase: "voting",
-      })
-      .eq("id", game.id);
+      .update({ current_item_index: nextIndex, phase: "voting" })
+      .eq("id", game.id)
+      .eq("phase", "placement");
 
     if (error) {
       console.error(error);

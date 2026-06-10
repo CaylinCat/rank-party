@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPlayerId, setPlayerSession } from "@/lib/playerSession";
+import {
+  fetchGameByCode,
+  isGameStarted,
+  startGame,
+} from "@/lib/api/games";
+import { fetchPlayers, fetchCurrentPlayer } from "@/lib/api/players";
+import { useLobbyCode } from "@/hooks/useLobbyCode";
+import { PageShell } from "@/components/PageShell";
+import { LoadingState } from "@/components/LoadingState";
+import { ErrorState } from "@/components/ErrorState";
+import type { Player } from "@/lib/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-type Player = {
-  id: string;
-  name: string;
-  is_host: boolean;
-};
-
 export default function LobbyPage() {
-  const params = useParams();
+  const code = useLobbyCode();
   const router = useRouter();
-  const code = (params.code as string).toUpperCase();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isCurrentHost, setIsCurrentHost] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,11 +34,7 @@ export default function LobbyPage() {
       setLoading(true);
       setError(null);
 
-      const { data: game, error: gameError } = await supabase
-        .from("games")
-        .select("*")
-        .eq("lobby_code", code)
-        .single();
+      const { data: game, error: gameError } = await fetchGameByCode(code);
 
       if (gameError || !game) {
         if (!cancelled) {
@@ -44,7 +44,7 @@ export default function LobbyPage() {
         return;
       }
 
-      if (game.status === "active" || game.status === "finished") {
+      if (isGameStarted(game.status)) {
         if (!cancelled) {
           router.push(`/game/${code}`);
         }
@@ -52,11 +52,8 @@ export default function LobbyPage() {
       }
 
       const gameId = game.id;
-
-      const { data: playersData, error: playersError } = await supabase
-        .from("players")
-        .select("*")
-        .eq("game_id", gameId);
+      const { data: playerList, error: playersError } =
+        await fetchPlayers(gameId);
 
       if (cancelled) return;
 
@@ -66,14 +63,17 @@ export default function LobbyPage() {
         return;
       }
 
-      const playerList = playersData || [];
       setPlayers(playerList);
 
       const playerId = getPlayerId();
-      const me = playerList.find((p) => p.id === playerId);
-      if (me) {
-        setPlayerSession(me.id, gameId, me.is_host);
-        setIsCurrentHost(me.is_host);
+      if (playerId) {
+        const { data: me } = await fetchCurrentPlayer(gameId, playerId);
+        if (me) {
+          setPlayerSession(me.id, gameId, me.is_host);
+          setIsCurrentHost(me.is_host);
+        } else {
+          setIsCurrentHost(false);
+        }
       } else {
         setIsCurrentHost(false);
       }
@@ -104,10 +104,7 @@ export default function LobbyPage() {
           },
           (payload) => {
             const updated = payload.new as { status?: string };
-            if (
-              updated.status === "active" ||
-              updated.status === "finished"
-            ) {
+            if (updated.status === "active" || updated.status === "finished") {
               router.push(`/game/${code}`);
             }
           }
@@ -125,7 +122,7 @@ export default function LobbyPage() {
     };
   }, [code, router]);
 
-  async function startGame() {
+  async function handleStartGame() {
     if (!isCurrentHost) {
       setError("Only the host can start the game.");
       return;
@@ -140,11 +137,7 @@ export default function LobbyPage() {
     setStarting(true);
     setError(null);
 
-    const { data: game, error: gameError } = await supabase
-      .from("games")
-      .select("*")
-      .eq("lobby_code", code)
-      .single();
+    const { data: game, error: gameError } = await fetchGameByCode(code);
 
     if (gameError || !game) {
       setError("Lobby not found.");
@@ -152,46 +145,11 @@ export default function LobbyPage() {
       return;
     }
 
-    const items = [
-      "Bob is cool",
-      "Cats rule",
-      "Pizza is amazing",
-      "Mondays suck",
-      "React is fun",
-      "Dogs are better",
-      "Coffee > Tea",
-      "Summer > Winter",
-      "AI will take over",
-      "This game is chaotic",
-    ];
+    const { error: startError } = await startGame(game.id);
 
-    const { error: itemsError } = await supabase.from("items").insert(
-      items.map((text, i) => ({
-        game_id: game.id,
-        text,
-        round_index: i,
-      }))
-    );
-
-    if (itemsError) {
-      console.error(itemsError);
-      setError(itemsError.message);
-      setStarting(false);
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from("games")
-      .update({
-        phase: "voting",
-        status: "active",
-        current_item_index: 0,
-      })
-      .eq("id", game.id);
-
-    if (updateError) {
-      console.error(updateError);
-      setError(updateError.message);
+    if (startError) {
+      console.error(startError);
+      setError(startError.message);
       setStarting(false);
       return;
     }
@@ -201,22 +159,22 @@ export default function LobbyPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <p>Loading lobby...</p>
-      </div>
+      <PageShell>
+        <LoadingState message="Loading lobby..." />
+      </PageShell>
     );
   }
 
   if (error && players.length === 0) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-red-600">{error}</p>
-      </div>
+      <PageShell>
+        <ErrorState message={error} />
+      </PageShell>
     );
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <PageShell>
       <div className="text-center space-y-4">
         <h1 className="text-3xl font-bold">Lobby</h1>
         <p className="text-gray-600">Code: {code}</p>
@@ -235,7 +193,7 @@ export default function LobbyPage() {
         {isCurrentHost ? (
           <button
             className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-            onClick={startGame}
+            onClick={handleStartGame}
             disabled={starting}
           >
             {starting ? "Starting..." : "Start Game"}
@@ -244,6 +202,6 @@ export default function LobbyPage() {
           <p className="text-sm text-gray-500">Waiting for host to start...</p>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-
-type LeaderboardEntry = {
-  id: string;
-  item_id: string;
-  position: number;
-  average_score: number;
-  items: { text: string } | null;
-};
+import { fetchGameByCode } from "@/lib/api/games";
+import {
+  fetchLeaderboard,
+  formatTierListText,
+} from "@/lib/api/leaderboard";
+import { useLobbyCode } from "@/hooks/useLobbyCode";
+import { PageShell } from "@/components/PageShell";
+import { LoadingState } from "@/components/LoadingState";
+import { ErrorState } from "@/components/ErrorState";
+import { TierList } from "@/components/TierList";
+import { CopyButton } from "@/components/CopyButton";
+import type { LeaderboardEntry } from "@/lib/types";
 
 export default function LeaderboardPage() {
-  const params = useParams();
-  const code = (params.code as string).toUpperCase();
+  const code = useLobbyCode();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +25,7 @@ export default function LeaderboardPage() {
       setLoading(true);
       setError(null);
 
-      const { data: game, error: gameError } = await supabase
-        .from("games")
-        .select("id")
-        .eq("lobby_code", code)
-        .single();
+      const { data: game, error: gameError } = await fetchGameByCode(code);
 
       if (gameError || !game) {
         setError("Game not found.");
@@ -36,11 +33,7 @@ export default function LeaderboardPage() {
         return;
       }
 
-      const { data, error: entriesError } = await supabase
-        .from("leaderboard_entries")
-        .select("id, item_id, position, average_score, items(text)")
-        .eq("game_id", game.id)
-        .order("position", { ascending: true });
+      const { data, error: entriesError } = await fetchLeaderboard(game.id);
 
       if (entriesError) {
         setError(entriesError.message);
@@ -48,7 +41,7 @@ export default function LeaderboardPage() {
         return;
       }
 
-      setEntries((data as unknown as LeaderboardEntry[]) || []);
+      setEntries(data);
       setLoading(false);
     }
 
@@ -57,34 +50,34 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <p>Loading leaderboard...</p>
-      </div>
+      <PageShell>
+        <LoadingState message="Loading leaderboard..." />
+      </PageShell>
     );
   }
 
   if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-red-600">{error}</p>
-      </div>
+      <PageShell>
+        <ErrorState message={error} />
+      </PageShell>
     );
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <PageShell>
       <div className="space-y-4 w-96">
-        <h1 className="text-3xl font-bold text-center">Leaderboard</h1>
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">Rank Party</h1>
+          <p className="text-gray-600">Code: {code}</p>
+        </div>
 
-        <ol className="space-y-2">
-          {entries.map((entry) => (
-            <li key={entry.id} className="text-lg">
-              {entry.position}. {entry.items?.text ?? "Unknown"} (
-              {entry.average_score.toFixed(1)})
-            </li>
-          ))}
-        </ol>
+        <TierList entries={entries} showEmptySlots />
+
+        <div className="text-center">
+          <CopyButton text={formatTierListText(entries)} />
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

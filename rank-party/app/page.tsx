@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { generateLobbyCode } from "@/lib/lobbyCode";
 import { setPlayerSession } from "@/lib/playerSession";
+import { createGame } from "@/lib/api/games";
+import { createHostPlayer } from "@/lib/api/players";
+import { PageShell } from "@/components/PageShell";
 
 export default function Home() {
   const router = useRouter();
@@ -23,15 +25,7 @@ export default function Home() {
     setError(null);
 
     const code = generateLobbyCode();
-
-    const { data: game, error: gameError } = await supabase
-      .from("games")
-      .insert({
-        lobby_code: code,
-        status: "lobby",
-      })
-      .select()
-      .single();
+    const { data: game, error: gameError } = await createGame(code);
 
     if (gameError || !game) {
       console.error(gameError);
@@ -40,15 +34,10 @@ export default function Home() {
       return;
     }
 
-    const { data: player, error: playerError } = await supabase
-      .from("players")
-      .insert({
-        game_id: game.id,
-        name: hostName.trim(),
-        is_host: true,
-      })
-      .select()
-      .single();
+    const { data: player, error: playerError } = await createHostPlayer(
+      game.id,
+      hostName.trim()
+    );
 
     if (playerError || !player) {
       console.error(playerError);
@@ -62,7 +51,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <PageShell>
       <div className="text-center space-y-4 w-72">
         <h1 className="text-4xl font-bold">Rank Party</h1>
 
@@ -88,6 +77,6 @@ export default function Home() {
           Join a lobby
         </Link>
       </div>
-    </div>
+    </PageShell>
   );
 }
