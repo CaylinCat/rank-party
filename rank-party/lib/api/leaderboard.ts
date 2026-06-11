@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { ROUND_COUNT } from "@/lib/constants";
+import { DEFAULT_GAME_SETTINGS } from "@/lib/gameSettings";
 import type { LeaderboardEntry } from "@/lib/types";
 
 export async function fetchLeaderboard(gameId: string) {
@@ -12,8 +12,11 @@ export async function fetchLeaderboard(gameId: string) {
   return { data: (data as unknown as LeaderboardEntry[]) || [], error };
 }
 
-export function formatTierListText(entries: LeaderboardEntry[]) {
-  return Array.from({ length: ROUND_COUNT }, (_, i) => {
+export function formatTierListText(
+  entries: LeaderboardEntry[],
+  roundCount: number = DEFAULT_GAME_SETTINGS.roundCount
+) {
+  return Array.from({ length: roundCount }, (_, i) => {
     const position = i + 1;
     const entry = entries.find((e) => e.position === position);
     if (!entry) return `${position}. —`;

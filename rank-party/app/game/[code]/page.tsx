@@ -25,6 +25,10 @@ export default function GamePage() {
     secondsLeft,
     resultsSecondsLeft,
     placementSecondsLeft,
+    votingDuration,
+    resultsDuration,
+    placementDuration,
+    roundCount,
     leaderboardEntries,
     avg,
     distribution,
@@ -82,6 +86,7 @@ export default function GamePage() {
             avg={avg}
             distribution={distribution}
             resultsSecondsLeft={resultsSecondsLeft}
+            resultsDuration={resultsDuration}
             isPopular={isPopularMode(game)}
             popularMode={popularMode}
             isTie={isTie}
@@ -98,6 +103,8 @@ export default function GamePage() {
           <PlacementPhase
             leaderboardEntries={leaderboardEntries}
             placementSecondsLeft={placementSecondsLeft}
+            placementDuration={placementDuration}
+            roundCount={roundCount}
           />
         </PartyCard>
       </PartyShell>
@@ -112,6 +119,7 @@ export default function GamePage() {
           voteCount={voteCount}
           playerCount={playerCount}
           secondsLeft={secondsLeft}
+          votingDuration={votingDuration}
           error={error}
           hasVoted={hasVoted}
           submittedRank={submittedRank}

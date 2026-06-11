@@ -1,5 +1,4 @@
 import { CountdownBar } from "@/components/CountdownBar";
-import { RESULTS_DURATION } from "@/lib/constants";
 import type { Item } from "@/lib/types";
 
 type ResultsPhaseProps = {
@@ -7,6 +6,7 @@ type ResultsPhaseProps = {
   avg: number;
   distribution: Record<number, number>;
   resultsSecondsLeft: number;
+  resultsDuration: number;
   isPopular?: boolean;
   popularMode?: number | null;
   isTie?: boolean;
@@ -17,6 +17,7 @@ export function ResultsPhase({
   avg,
   distribution,
   resultsSecondsLeft,
+  resultsDuration,
   isPopular = false,
   popularMode = null,
   isTie = false,
@@ -49,7 +50,7 @@ export function ResultsPhase({
       <div className="text-center">
         <CountdownBar
           secondsLeft={resultsSecondsLeft}
-          duration={RESULTS_DURATION}
+          duration={resultsDuration}
           label=""
         />
       </div>

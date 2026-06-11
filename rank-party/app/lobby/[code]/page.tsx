@@ -7,10 +7,18 @@ import { getPlayerId, setPlayerSession } from "@/lib/playerSession";
 import { parseItemList, PRESENCE_HEARTBEAT_MS } from "@/lib/constants";
 import { DEFAULT_GAME_MODE, type GameMode } from "@/lib/gameModes";
 import {
+  areSettingsLocked,
+  clampGameSettings,
+  DEFAULT_GAME_SETTINGS,
+  getGameSettings,
+  type GameSettings,
+} from "@/lib/gameSettings";
+import {
   ensureLobbySession,
   fetchActiveSessionByCode,
   fetchLobbySessionByCode,
   setLobbyGameMode,
+  setLobbySettings,
   startGame,
 } from "@/lib/api/games";
 import { fetchPlayers, fetchCurrentPlayer } from "@/lib/api/players";
@@ -35,6 +43,8 @@ export default function LobbyPage() {
   const [error, setError] = useState<string | null>(null);
   const [itemListInput, setItemListInput] = useState("");
   const [gameMode, setGameMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  const [settings, setSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [settingsLocked, setSettingsLocked] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   usePlayerPresence();
@@ -72,6 +82,8 @@ export default function LobbyPage() {
       const gameId = game.id;
       setSessionId(gameId);
       setGameMode(game.game_mode ?? DEFAULT_GAME_MODE);
+      setSettings(getGameSettings(game));
+      setSettingsLocked(areSettingsLocked(game));
 
       const { data: playerList, error: playersError } =
         await fetchPlayers(gameId);
@@ -157,9 +169,35 @@ export default function LobbyPage() {
             const updated = payload.new as {
               status?: string;
               game_mode?: GameMode;
+              round_count?: number;
+              voting_duration?: number;
+              results_duration?: number;
+              placement_duration?: number;
+              settings_locked?: boolean;
             };
             if (updated.game_mode) {
               setGameMode(updated.game_mode);
+            }
+            if (updated.settings_locked !== undefined) {
+              setSettingsLocked(updated.settings_locked);
+            }
+            if (
+              updated.round_count !== undefined ||
+              updated.voting_duration !== undefined ||
+              updated.results_duration !== undefined ||
+              updated.placement_duration !== undefined
+            ) {
+              setSettings((prev) =>
+                getGameSettings({
+                  round_count: updated.round_count ?? prev.roundCount,
+                  voting_duration:
+                    updated.voting_duration ?? prev.votingDuration,
+                  results_duration:
+                    updated.results_duration ?? prev.resultsDuration,
+                  placement_duration:
+                    updated.placement_duration ?? prev.placementDuration,
+                })
+              );
             }
             if (updated.status === "active") {
               router.push(`/game/${code}`);
@@ -180,17 +218,30 @@ export default function LobbyPage() {
   }, [code, router]);
 
   useEffect(() => {
-    const gameId = sessionId;
-    if (!gameId) return;
+    if (!sessionId) return;
+    const id = sessionId;
 
     async function refreshPlayers() {
-      const { data } = await fetchPlayers(gameId);
+      const { data } = await fetchPlayers(id);
       if (data) setPlayers(data);
     }
 
     const interval = setInterval(refreshPlayers, PRESENCE_HEARTBEAT_MS);
     return () => clearInterval(interval);
   }, [sessionId]);
+
+  async function handleSettingsChange(next: GameSettings) {
+    if (!isCurrentHost || !sessionId || settingsLocked) return;
+
+    const clamped = clampGameSettings(next);
+
+    setSettings(clamped);
+    const { error: settingsError } = await setLobbySettings(sessionId, clamped);
+    if (settingsError) {
+      console.error(settingsError);
+      setError(settingsError.message);
+    }
+  }
 
   async function handleGameModeChange(mode: GameMode) {
     if (!isCurrentHost || !sessionId) return;
@@ -226,7 +277,11 @@ export default function LobbyPage() {
       return;
     }
 
-    const { items, error: parseError } = parseItemList(itemListInput);
+    const lobbySettings = getGameSettings(game);
+    const { items, error: parseError } = parseItemList(
+      itemListInput,
+      lobbySettings.roundCount
+    );
     if (!items) {
       setError(parseError ?? "Invalid item list.");
       setStarting(false);
@@ -276,6 +331,9 @@ export default function LobbyPage() {
         onItemListChange={setItemListInput}
         gameMode={gameMode}
         onGameModeChange={handleGameModeChange}
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+        settingsLocked={settingsLocked}
         starting={starting}
         error={error}
         onStartGame={handleStartGame}

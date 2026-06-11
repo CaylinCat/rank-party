@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { HostItemsInput } from "@/components/lobby/HostItemsInput";
 import { LobbyActionBar } from "@/components/lobby/LobbyActionBar";
 import { LobbyCodeDisplay } from "@/components/lobby/LobbyCodeDisplay";
+import { LobbySettings } from "@/components/lobby/LobbySettings";
 import { LobbyTabs, type LobbyTab } from "@/components/lobby/LobbyTabs";
 import { ModeSelection } from "@/components/lobby/ModeSelection";
 import { PlayerList } from "@/components/lobby/PlayerList";
 import type { GameMode } from "@/lib/gameModes";
+import type { GameSettings } from "@/lib/gameSettings";
 import type { Player } from "@/lib/types";
 
 type LobbyRoomProps = {
@@ -19,6 +21,9 @@ type LobbyRoomProps = {
   onItemListChange: (value: string) => void;
   gameMode: GameMode;
   onGameModeChange: (mode: GameMode) => void;
+  settings: GameSettings;
+  onSettingsChange: (settings: GameSettings) => void;
+  settingsLocked: boolean;
   starting: boolean;
   error: string | null;
   onStartGame: () => void;
@@ -32,6 +37,9 @@ export function LobbyRoom({
   onItemListChange,
   gameMode,
   onGameModeChange,
+  settings,
+  onSettingsChange,
+  settingsLocked,
   starting,
   error,
   onStartGame,
@@ -49,7 +57,7 @@ export function LobbyRoom({
 
       <LobbyTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === "lobby" ? (
+      {activeTab === "lobby" && (
         <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
           <PlayerList players={players} />
 
@@ -64,17 +72,31 @@ export function LobbyRoom({
               <HostItemsInput
                 value={itemListInput}
                 onChange={onItemListChange}
-                disabled={starting}
+                roundCount={settings.roundCount}
+                disabled={starting || settingsLocked}
               />
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === "modes" && (
         <div className="mx-auto w-full max-w-lg">
           <ModeSelection
             selectedMode={gameMode}
             onModeChange={onGameModeChange}
             isHost={isCurrentHost}
+          />
+        </div>
+      )}
+
+      {activeTab === "settings" && (
+        <div className="mx-auto w-full max-w-lg">
+          <LobbySettings
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            isHost={isCurrentHost}
+            locked={settingsLocked}
           />
         </div>
       )}

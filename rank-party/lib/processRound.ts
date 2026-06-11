@@ -3,7 +3,7 @@ import { findPosition } from "./findPosition";
 import { calculateResults } from "./calculateResults";
 import { calculatePopularResults } from "./calculatePopularResults";
 import { isPopularMode } from "./gameModes";
-import { ROUND_COUNT } from "./constants";
+import { getGameSettings } from "./gameSettings";
 import type { Game, Item } from "./types";
 
 async function fetchVotesForRound(itemId: string, roundGeneration: number) {
@@ -168,8 +168,9 @@ export async function saveRoundPlacement(game: Game, item: Item) {
 
 export async function advanceToNextRound(game: Game) {
   const nextIndex = game.current_item_index + 1;
+  const { roundCount } = getGameSettings(game);
 
-  if (nextIndex >= ROUND_COUNT) {
+  if (nextIndex >= roundCount) {
     const { error } = await supabase
       .from("games")
       .update({ status: "finished", phase: "finished" })

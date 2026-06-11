@@ -1,7 +1,7 @@
-export const ROUND_COUNT = 10;
-export const VOTING_DURATION = 30;
-export const RESULTS_DURATION = 5;
-export const PLACEMENT_DURATION = 5;
+import { DEFAULT_GAME_SETTINGS } from "@/lib/gameSettings";
+
+/** Default fallbacks only — gameplay timers read from `game` via getGameSettings(). */
+export const ROUND_COUNT = DEFAULT_GAME_SETTINGS.roundCount;
 
 export const PRESENCE_HEARTBEAT_MS = 10_000;
 export const PRESENCE_ACTIVE_MS = 30_000;
@@ -20,13 +20,16 @@ export const DEFAULT_ITEMS = [
   "This game is chaotic",
 ];
 
-export function parseItemList(input: string): {
+export function parseItemList(
+  input: string,
+  roundCount: number = ROUND_COUNT
+): {
   items: string[] | null;
   error?: string;
 } {
   const trimmed = input.trim();
   if (!trimmed) {
-    return { items: [...DEFAULT_ITEMS] };
+    return { items: DEFAULT_ITEMS.slice(0, roundCount) };
   }
 
   const items = trimmed
@@ -34,10 +37,10 @@ export function parseItemList(input: string): {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (items.length !== ROUND_COUNT) {
+  if (items.length !== roundCount) {
     return {
       items: null,
-      error: `Enter exactly ${ROUND_COUNT} items, separated by commas.`,
+      error: `Enter exactly ${roundCount} items, separated by commas.`,
     };
   }
 

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { GameMode } from "@/lib/gameModes";
+import type { GameSettings } from "@/lib/gameSettings";
 import type { Game, GamePhase, GameStatus } from "@/lib/types";
 
 function normalizeLobbyCode(code: string) {
@@ -114,6 +115,35 @@ export async function ensureLobbySession(lobbyCode: string) {
   return createNextSession(lobbyCode, finished.id);
 }
 
+export async function setLobbySettings(
+  gameId: string,
+  settings: Partial<GameSettings>
+) {
+  const patch: Record<string, number> = {};
+
+  if (settings.roundCount !== undefined) {
+    patch.round_count = settings.roundCount;
+  }
+  if (settings.votingDuration !== undefined) {
+    patch.voting_duration = settings.votingDuration;
+  }
+  if (settings.resultsDuration !== undefined) {
+    patch.results_duration = settings.resultsDuration;
+  }
+  if (settings.placementDuration !== undefined) {
+    patch.placement_duration = settings.placementDuration;
+  }
+
+  const { error } = await supabase
+    .from("games")
+    .update(patch)
+    .eq("id", gameId)
+    .eq("status", "lobby")
+    .eq("settings_locked", false);
+
+  return { error };
+}
+
 export async function setLobbyGameMode(gameId: string, mode: GameMode) {
   const { error } = await supabase
     .from("games")
@@ -162,6 +192,7 @@ export async function startGame(gameId: string, items: string[]) {
       phase: "voting",
       status: "active",
       current_item_index: 0,
+      settings_locked: true,
     })
     .eq("id", gameId)
     .eq("status", "lobby");

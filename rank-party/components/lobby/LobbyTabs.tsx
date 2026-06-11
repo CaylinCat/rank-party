@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type LobbyTab = "lobby" | "modes";
+export type LobbyTab = "lobby" | "modes" | "settings";
 
 type LobbyTabsProps = {
   activeTab: LobbyTab;
@@ -12,6 +12,7 @@ type LobbyTabsProps = {
 const TABS: { id: LobbyTab; label: string }[] = [
   { id: "lobby", label: "Lobby" },
   { id: "modes", label: "Modes" },
+  { id: "settings", label: "Settings" },
 ];
 
 export function LobbyTabs({ activeTab, onTabChange }: LobbyTabsProps) {

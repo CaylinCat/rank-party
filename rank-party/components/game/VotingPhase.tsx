@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { CountdownBar } from "@/components/CountdownBar";
-import { VOTING_DURATION } from "@/lib/constants";
 import type { Item } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +8,7 @@ type VotingPhaseProps = {
   voteCount: number;
   playerCount: number;
   secondsLeft: number;
+  votingDuration: number;
   error: string | null;
   hasVoted: boolean;
   submittedRank: number | null;
@@ -24,6 +24,7 @@ export function VotingPhase({
   voteCount,
   playerCount,
   secondsLeft,
+  votingDuration,
   error,
   hasVoted,
   submittedRank,
@@ -42,7 +43,7 @@ export function VotingPhase({
         </p>
         <CountdownBar
           secondsLeft={secondsLeft}
-          duration={VOTING_DURATION}
+          duration={votingDuration}
           label=""
         />
       </div>

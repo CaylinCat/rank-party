@@ -12,6 +12,11 @@ export type Game = {
   current_item_index: number;
   game_mode?: GameMode;
   round_generation?: number;
+  round_count?: number;
+  voting_duration?: number;
+  results_duration?: number;
+  placement_duration?: number;
+  settings_locked?: boolean;
   created_at?: string;
 };
 

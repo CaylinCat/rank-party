@@ -1,16 +1,17 @@
-import { ROUND_COUNT } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
 type HostItemsInputProps = {
   value: string;
   onChange: (value: string) => void;
+  roundCount: number;
   disabled?: boolean;
 };
 
 export function HostItemsInput({
   value,
   onChange,
+  roundCount,
   disabled,
 }: HostItemsInputProps) {
   return (
@@ -18,7 +19,7 @@ export function HostItemsInput({
       <CardHeader>
         <CardTitle className="text-lg">Items to rank</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {ROUND_COUNT} comma-separated items (optional — leave blank for
+          {roundCount} comma-separated items (optional — leave blank for
           defaults)
         </p>
       </CardHeader>

@@ -28,10 +28,9 @@ import {
   saveRoundPlacement,
 } from "@/lib/processRound";
 import {
-  PLACEMENT_DURATION,
-  RESULTS_DURATION,
-  VOTING_DURATION,
-} from "@/lib/constants";
+  DEFAULT_GAME_SETTINGS,
+  getGameSettings,
+} from "@/lib/gameSettings";
 import { getGameId, getPlayerId, isHost } from "@/lib/playerSession";
 import type { Game, Item, LeaderboardEntry } from "@/lib/types";
 import { useLobbyCode } from "./useLobbyCode";
@@ -376,21 +375,30 @@ export function useGame() {
     }
   }, [game?.phase, code, router]);
 
-  const [secondsLeft, setSecondsLeft] = useState(VOTING_DURATION);
-  const [resultsSecondsLeft, setResultsSecondsLeft] =
-    useState(RESULTS_DURATION);
-  const [placementSecondsLeft, setPlacementSecondsLeft] =
-    useState(PLACEMENT_DURATION);
+  const [secondsLeft, setSecondsLeft] = useState(
+    DEFAULT_GAME_SETTINGS.votingDuration
+  );
+  const [resultsSecondsLeft, setResultsSecondsLeft] = useState(
+    DEFAULT_GAME_SETTINGS.resultsDuration
+  );
+  const [placementSecondsLeft, setPlacementSecondsLeft] = useState(
+    DEFAULT_GAME_SETTINGS.placementDuration
+  );
+
+  const settings = getGameSettings(game);
 
   useEffect(() => {
     if (!game || !item) return;
+
+    const { votingDuration, resultsDuration, placementDuration } =
+      getGameSettings(game);
 
     const roundKey = `${game.id}-${game.current_item_index}-${game.phase}-${game.round_generation ?? 0}`;
     if (timerRoundRef.current === roundKey) return;
     timerRoundRef.current = roundKey;
 
     if (game.phase === "results") {
-      setResultsSecondsLeft(RESULTS_DURATION);
+      setResultsSecondsLeft(resultsDuration);
       const interval = setInterval(() => {
         setResultsSecondsLeft((prev) => {
           if (prev <= 1) {
@@ -411,7 +419,7 @@ export function useGame() {
     }
 
     if (game.phase === "placement") {
-      setPlacementSecondsLeft(PLACEMENT_DURATION);
+      setPlacementSecondsLeft(placementDuration);
       const interval = setInterval(() => {
         setPlacementSecondsLeft((prev) => {
           if (prev <= 1) {
@@ -437,7 +445,7 @@ export function useGame() {
     }
 
     if (game.phase === "voting") {
-      setSecondsLeft(VOTING_DURATION);
+      setSecondsLeft(votingDuration);
       const interval = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
@@ -456,6 +464,9 @@ export function useGame() {
     game?.id,
     game?.current_item_index,
     game?.round_generation,
+    game?.voting_duration,
+    game?.results_duration,
+    game?.placement_duration,
     item?.id,
     goToResults,
     load,
@@ -517,6 +528,10 @@ export function useGame() {
     secondsLeft,
     resultsSecondsLeft,
     placementSecondsLeft,
+    votingDuration: settings.votingDuration,
+    resultsDuration: settings.resultsDuration,
+    placementDuration: settings.placementDuration,
+    roundCount: settings.roundCount,
     leaderboardEntries,
     avg,
     distribution,

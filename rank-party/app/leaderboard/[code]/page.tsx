@@ -13,6 +13,7 @@ import {
   fetchLeaderboard,
   formatTierListText,
 } from "@/lib/api/leaderboard";
+import { getGameSettings } from "@/lib/gameSettings";
 import { getGameId } from "@/lib/playerSession";
 import { useLobbyCode } from "@/hooks/useLobbyCode";
 import { PartyShell } from "@/components/shell/PartyShell";
@@ -28,6 +29,7 @@ export default function LeaderboardPage() {
   const code = useLobbyCode();
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [roundCount, setRoundCount] = useState(10);
   const [loading, setLoading] = useState(true);
   const [playAgainLoading, setPlayAgainLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export default function LeaderboardPage() {
 
       const storedGameId = getGameId();
       let sessionId: string | null = null;
+      let session = null;
 
       if (storedGameId) {
         const { data: storedSession } = await fetchSessionById(storedGameId);
@@ -47,6 +50,7 @@ export default function LeaderboardPage() {
           storedSession.status === "finished"
         ) {
           sessionId = storedSession.id;
+          session = storedSession;
         }
       }
 
@@ -61,7 +65,10 @@ export default function LeaderboardPage() {
         }
 
         sessionId = finished.id;
+        session = finished;
       }
+
+      setRoundCount(getGameSettings(session).roundCount);
 
       const { data, error: entriesError } = await fetchLeaderboard(sessionId);
 
@@ -121,11 +128,11 @@ export default function LeaderboardPage() {
           </p>
         </div>
 
-        <TierList entries={entries} showEmptySlots />
+        <TierList entries={entries} showEmptySlots roundCount={roundCount} />
 
         <div className="flex flex-col gap-2">
           <div className="text-center">
-            <CopyButton text={formatTierListText(entries)} />
+            <CopyButton text={formatTierListText(entries, roundCount)} />
           </div>
           {error && <p className="text-sm text-destructive text-center">{error}</p>}
           <Button

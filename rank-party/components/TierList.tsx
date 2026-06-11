@@ -1,23 +1,22 @@
-import { ROUND_COUNT } from "@/lib/constants";
 import type { LeaderboardEntry } from "@/lib/types";
 
 type TierListProps = {
   entries: LeaderboardEntry[];
   showEmptySlots?: boolean;
+  roundCount?: number;
 };
 
 export function TierList({
   entries,
   showEmptySlots = false,
+  roundCount = 10,
 }: TierListProps) {
-  const slotCount = showEmptySlots ? ROUND_COUNT : entries.length;
-
   if (!showEmptySlots && entries.length === 0) {
     return <p className="text-gray-500">No rankings yet.</p>;
   }
 
   const slots = showEmptySlots
-    ? Array.from({ length: ROUND_COUNT }, (_, i) => i + 1)
+    ? Array.from({ length: roundCount }, (_, i) => i + 1)
     : entries.map((e) => e.position);
 
   return (
