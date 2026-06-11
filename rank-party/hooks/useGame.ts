@@ -5,14 +5,17 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { calculateResults } from "@/lib/calculateResults";
+import { calculatePopularResults } from "@/lib/calculatePopularResults";
 import {
   fetchActiveSessionByCode,
   fetchItems,
   fetchLatestFinishedSessionByCode,
   fetchLobbySessionByCode,
   fetchSessionById,
+  fetchUsedRanks,
   setGamePhase,
 } from "@/lib/api/games";
+import { isPopularMode } from "@/lib/gameModes";
 import {
   fetchExistingVote,
   fetchVoteProgress,
@@ -58,6 +61,9 @@ export function useGame() {
   const [distribution, setDistribution] = useState<Record<number, number>>(
     EMPTY_DISTRIBUTION
   );
+  const [popularMode, setPopularMode] = useState<number | null>(null);
+  const [isTie, setIsTie] = useState(false);
+  const [disabledRanks, setDisabledRanks] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,16 +76,27 @@ export function useGame() {
   gameRef.current = game;
   itemRef.current = item;
 
-  const loadVoteProgress = useCallback(async (gameId: string, itemId: string) => {
-    const progress = await fetchVoteProgress(gameId, itemId);
-    setPlayerCount(progress.totalPlayers);
-    setVoteCount(progress.totalVotes);
-    return progress;
-  }, []);
+  const loadVoteProgress = useCallback(
+    async (gameId: string, itemId: string, roundGeneration: number) => {
+      const progress = await fetchVoteProgress(
+        gameId,
+        itemId,
+        roundGeneration
+      );
+      setPlayerCount(progress.totalPlayers);
+      setVoteCount(progress.totalVotes);
+      return progress;
+    },
+    []
+  );
 
   const loadExistingVote = useCallback(
-    async (itemId: string, playerId: string) => {
-      const { data } = await fetchExistingVote(itemId, playerId);
+    async (itemId: string, playerId: string, roundGeneration: number) => {
+      const { data } = await fetchExistingVote(
+        itemId,
+        playerId,
+        roundGeneration
+      );
       if (data) {
         setSubmittedRank(data.rank);
         setSelectedRank(data.rank);
@@ -93,15 +110,32 @@ export function useGame() {
     []
   );
 
-  const loadResults = useCallback(async (itemId: string) => {
-    const { data: votes } = await fetchVotesForItem(itemId);
+  const loadResults = useCallback(async (itemId: string, game: Game) => {
+    const { data: votes } = await fetchVotesForItem(
+      itemId,
+      game.round_generation ?? 0
+    );
+
+    if (isPopularMode(game)) {
+      const results = calculatePopularResults(votes || []);
+      setPopularMode(results.mode);
+      setIsTie(results.isTie);
+      setDistribution(results.distribution);
+      setAvg(results.mode ?? 0);
+      return;
+    }
+
     const results = calculateResults(votes || []);
+    setPopularMode(null);
+    setIsTie(false);
     setAvg(results.avg);
     setDistribution(results.distribution);
   }, []);
 
   const clearResults = useCallback(() => {
     setAvg(0);
+    setPopularMode(null);
+    setIsTie(false);
     setDistribution(EMPTY_DISTRIBUTION);
   }, []);
 
@@ -197,8 +231,9 @@ export function useGame() {
     }
 
     const currentItem = items?.[g.current_item_index ?? 0] ?? null;
+    const generation = g.round_generation ?? 0;
     const roundKey = currentItem
-      ? `${g.id}-${g.current_item_index}-${currentItem.id}`
+      ? `${g.id}-${g.current_item_index}-${currentItem.id}-${generation}`
       : null;
 
     if (
@@ -215,22 +250,36 @@ export function useGame() {
     setItem(currentItem);
 
     if (g.phase === "voting" && currentItem) {
-      if ((g.current_item_index ?? 0) === 0) {
+      if ((g.current_item_index ?? 0) === 0 && generation === 0) {
         setLeaderboardEntries([]);
       }
+      if (isPopularMode(g)) {
+        const { data: usedRanks } = await fetchUsedRanks(g.id);
+        setDisabledRanks(usedRanks);
+      } else {
+        setDisabledRanks([]);
+      }
       const playerId = getPlayerId();
-      const progress = await loadVoteProgress(g.id, currentItem.id);
+      const progress = await loadVoteProgress(
+        g.id,
+        currentItem.id,
+        generation
+      );
       if (playerId) {
-        await loadExistingVote(currentItem.id, playerId);
+        await loadExistingVote(currentItem.id, playerId, generation);
       }
       await maybeAutoAdvanceToResults(
         progress.totalVotes,
         progress.totalPlayers
       );
     } else if (g.phase === "results" && currentItem) {
-      await loadResults(currentItem.id);
+      await loadResults(currentItem.id, g);
     } else if (g.phase === "placement") {
       await loadLeaderboard(g.id);
+      if (isPopularMode(g)) {
+        const { data: usedRanks } = await fetchUsedRanks(g.id);
+        setDisabledRanks(usedRanks);
+      }
     } else {
       clearResults();
     }
@@ -296,7 +345,12 @@ export function useGame() {
           filter: `item_id=eq.${itemId}`,
         },
         async () => {
-          const progress = await loadVoteProgress(gameId, itemId);
+          const roundGeneration = gameRef.current?.round_generation ?? 0;
+          const progress = await loadVoteProgress(
+            gameId,
+            itemId,
+            roundGeneration
+          );
           await maybeAutoAdvanceToResults(
             progress.totalVotes,
             progress.totalPlayers
@@ -331,7 +385,7 @@ export function useGame() {
   useEffect(() => {
     if (!game || !item) return;
 
-    const roundKey = `${game.id}-${game.current_item_index}-${game.phase}`;
+    const roundKey = `${game.id}-${game.current_item_index}-${game.phase}-${game.round_generation ?? 0}`;
     if (timerRoundRef.current === roundKey) return;
     timerRoundRef.current = roundKey;
 
@@ -401,6 +455,7 @@ export function useGame() {
     game?.phase,
     game?.id,
     game?.current_item_index,
+    game?.round_generation,
     item?.id,
     goToResults,
     load,
@@ -410,6 +465,14 @@ export function useGame() {
   async function submitVote() {
     if (!game || !item || hasVoted || submitting || selectedRank === null)
       return;
+
+    if (
+      isPopularMode(game) &&
+      disabledRanks.includes(selectedRank)
+    ) {
+      setError("That rank is already taken on the tier list.");
+      return;
+    }
 
     const playerId = getPlayerId();
     if (!playerId) {
@@ -424,7 +487,8 @@ export function useGame() {
       game.id,
       item.id,
       playerId,
-      selectedRank
+      selectedRank,
+      game.round_generation ?? 0
     );
 
     if (voteError) {
@@ -456,6 +520,9 @@ export function useGame() {
     leaderboardEntries,
     avg,
     distribution,
+    popularMode,
+    isTie,
+    disabledRanks,
     submitting,
     submitVote,
   };

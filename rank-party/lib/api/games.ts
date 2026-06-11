@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { GameMode } from "@/lib/gameModes";
 import type { Game, GamePhase, GameStatus } from "@/lib/types";
 
 function normalizeLobbyCode(code: string) {
@@ -111,6 +112,27 @@ export async function ensureLobbySession(lobbyCode: string) {
   }
 
   return createNextSession(lobbyCode, finished.id);
+}
+
+export async function setLobbyGameMode(gameId: string, mode: GameMode) {
+  const { error } = await supabase
+    .from("games")
+    .update({ game_mode: mode })
+    .eq("id", gameId)
+    .eq("status", "lobby");
+
+  return { error };
+}
+
+export async function fetchUsedRanks(gameId: string) {
+  const { data, error } = await supabase
+    .from("leaderboard_entries")
+    .select("position")
+    .eq("game_id", gameId);
+
+  if (error) return { data: [] as number[], error };
+
+  return { data: (data || []).map((entry) => entry.position), error: null };
 }
 
 export async function fetchItems(gameId: string) {

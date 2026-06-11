@@ -1,3 +1,5 @@
+import type { GameMode } from "@/lib/gameModes";
+
 export type GameStatus = "lobby" | "active" | "finished";
 export type GamePhase = "voting" | "results" | "placement" | "finished" | "showing";
 
@@ -8,6 +10,8 @@ export type Game = {
   status: GameStatus;
   phase: GamePhase;
   current_item_index: number;
+  game_mode?: GameMode;
+  round_generation?: number;
   created_at?: string;
 };
 
@@ -32,6 +36,7 @@ export type Vote = {
   item_id: string;
   player_id: string;
   rank: number;
+  round_generation?: number;
 };
 
 export type LeaderboardEntry = {

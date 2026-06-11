@@ -10,6 +10,7 @@ import {
   ensureLobbySession,
   fetchActiveSessionByCode,
   fetchLobbySessionByCode,
+  setLobbyGameMode,
   startGame,
 } from "@/lib/api/games";
 import { fetchPlayers, fetchCurrentPlayer } from "@/lib/api/players";
@@ -70,6 +71,7 @@ export default function LobbyPage() {
 
       const gameId = game.id;
       setSessionId(gameId);
+      setGameMode(game.game_mode ?? DEFAULT_GAME_MODE);
 
       const { data: playerList, error: playersError } =
         await fetchPlayers(gameId);
@@ -152,7 +154,13 @@ export default function LobbyPage() {
             filter: `id=eq.${gameId}`,
           },
           (payload) => {
-            const updated = payload.new as { status?: string };
+            const updated = payload.new as {
+              status?: string;
+              game_mode?: GameMode;
+            };
+            if (updated.game_mode) {
+              setGameMode(updated.game_mode);
+            }
             if (updated.status === "active") {
               router.push(`/game/${code}`);
             }
@@ -172,16 +180,28 @@ export default function LobbyPage() {
   }, [code, router]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    const gameId = sessionId;
+    if (!gameId) return;
 
     async function refreshPlayers() {
-      const { data } = await fetchPlayers(sessionId);
+      const { data } = await fetchPlayers(gameId);
       if (data) setPlayers(data);
     }
 
     const interval = setInterval(refreshPlayers, PRESENCE_HEARTBEAT_MS);
     return () => clearInterval(interval);
   }, [sessionId]);
+
+  async function handleGameModeChange(mode: GameMode) {
+    if (!isCurrentHost || !sessionId) return;
+
+    setGameMode(mode);
+    const { error: modeError } = await setLobbyGameMode(sessionId, mode);
+    if (modeError) {
+      console.error(modeError);
+      setError(modeError.message);
+    }
+  }
 
   async function handleStartGame() {
     if (!isCurrentHost) {
@@ -255,7 +275,7 @@ export default function LobbyPage() {
         itemListInput={itemListInput}
         onItemListChange={setItemListInput}
         gameMode={gameMode}
-        onGameModeChange={setGameMode}
+        onGameModeChange={handleGameModeChange}
         starting={starting}
         error={error}
         onStartGame={handleStartGame}

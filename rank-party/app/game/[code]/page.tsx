@@ -8,6 +8,7 @@ import { VotingPhase } from "@/components/game/VotingPhase";
 import { ResultsPhase } from "@/components/game/ResultsPhase";
 import { PlacementPhase } from "@/components/game/PlacementPhase";
 import { useGame } from "@/hooks/useGame";
+import { isPopularMode } from "@/lib/gameModes";
 
 export default function GamePage() {
   const {
@@ -27,6 +28,9 @@ export default function GamePage() {
     leaderboardEntries,
     avg,
     distribution,
+    popularMode,
+    isTie,
+    disabledRanks,
     submitting,
     submitVote,
   } = useGame();
@@ -78,6 +82,9 @@ export default function GamePage() {
             avg={avg}
             distribution={distribution}
             resultsSecondsLeft={resultsSecondsLeft}
+            isPopular={isPopularMode(game)}
+            popularMode={popularMode}
+            isTie={isTie}
           />
         </PartyCard>
       </PartyShell>
@@ -112,6 +119,7 @@ export default function GamePage() {
           setSelectedRank={setSelectedRank}
           submitting={submitting}
           submitVote={submitVote}
+          disabledRanks={isPopularMode(game) ? disabledRanks : []}
         />
       </PartyCard>
     </PartyShell>

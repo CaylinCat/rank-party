@@ -5,13 +5,15 @@ export async function submitVote(
   gameId: string,
   itemId: string,
   playerId: string,
-  rank: number
+  rank: number,
+  roundGeneration: number
 ) {
   const { error } = await supabase.from("votes").insert({
     game_id: gameId,
     item_id: itemId,
     player_id: playerId,
     rank,
+    round_generation: roundGeneration,
   });
 
   return { error };
@@ -19,7 +21,8 @@ export async function submitVote(
 
 export async function fetchVoteProgress(
   gameId: string,
-  itemId: string
+  itemId: string,
+  roundGeneration: number
 ): Promise<VoteProgress> {
   const cutoff = new Date(Date.now() - 30_000).toISOString();
 
@@ -29,7 +32,11 @@ export async function fetchVoteProgress(
       .select("*", { count: "exact", head: true })
       .eq("game_id", gameId)
       .gt("last_seen", cutoff),
-    supabase.from("votes").select("player_id").eq("item_id", itemId),
+    supabase
+      .from("votes")
+      .select("player_id")
+      .eq("item_id", itemId)
+      .eq("round_generation", roundGeneration),
   ]);
 
   return {
@@ -38,22 +45,31 @@ export async function fetchVoteProgress(
   };
 }
 
-export async function fetchExistingVote(itemId: string, playerId: string) {
+export async function fetchExistingVote(
+  itemId: string,
+  playerId: string,
+  roundGeneration: number
+) {
   const { data, error } = await supabase
     .from("votes")
     .select("rank")
     .eq("item_id", itemId)
     .eq("player_id", playerId)
+    .eq("round_generation", roundGeneration)
     .maybeSingle();
 
   return { data, error };
 }
 
-export async function fetchVotesForItem(itemId: string) {
+export async function fetchVotesForItem(
+  itemId: string,
+  roundGeneration: number
+) {
   const { data, error } = await supabase
     .from("votes")
     .select("*")
-    .eq("item_id", itemId);
+    .eq("item_id", itemId)
+    .eq("round_generation", roundGeneration);
 
   return { data: data || [], error };
 }

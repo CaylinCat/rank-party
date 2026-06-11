@@ -29,7 +29,7 @@ export const GAME_MODES: GameModeOption[] = [
       "Ties send the item back to be voted again",
       "Once slot 4 is taken, nobody can pick 4 again",
     ],
-    available: false,
+    available: true,
   },
 ];
 
@@ -37,4 +37,8 @@ export const DEFAULT_GAME_MODE: GameMode = "normal";
 
 export function getGameModeOption(mode: GameMode) {
   return GAME_MODES.find((m) => m.id === mode) ?? GAME_MODES[0];
+}
+
+export function isPopularMode(game: { game_mode?: GameMode } | null) {
+  return game?.game_mode === "popular";
 }
