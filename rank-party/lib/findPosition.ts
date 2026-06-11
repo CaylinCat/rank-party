@@ -1,13 +1,19 @@
-export function findPosition(target: number, occupied: number[]) {
-  if (!occupied.includes(target)) {
-    return target;
+export function findPosition(
+  target: number,
+  occupied: number[],
+  maxRank: number
+) {
+  const clamped = Math.min(maxRank, Math.max(1, target));
+
+  if (!occupied.includes(clamped)) {
+    return clamped;
   }
 
-  for (let distance = 1; distance <= 10; distance++) {
-    const higher = target + distance;
-    const lower = target - distance;
+  for (let distance = 1; distance <= maxRank; distance++) {
+    const higher = clamped + distance;
+    const lower = clamped - distance;
 
-    if (higher <= 10 && !occupied.includes(higher)) {
+    if (higher <= maxRank && !occupied.includes(higher)) {
       return higher;
     }
 
@@ -16,5 +22,5 @@ export function findPosition(target: number, occupied: number[]) {
     }
   }
 
-  return target;
+  return clamped;
 }

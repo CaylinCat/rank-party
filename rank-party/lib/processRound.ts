@@ -53,8 +53,9 @@ async function saveNormalRoundPlacement(game: Game, item: Item) {
     .maybeSingle();
 
   if (!existing) {
+    const { roundCount } = getGameSettings(game);
     const votes = await fetchVotesForRound(item.id, roundGeneration);
-    const { avg } = calculateResults(votes);
+    const { avg } = calculateResults(votes, roundCount);
     const targetPosition = Math.round(avg);
 
     const { data: entries } = await supabase
@@ -63,7 +64,7 @@ async function saveNormalRoundPlacement(game: Game, item: Item) {
       .eq("game_id", game.id);
 
     const occupiedPositions = (entries || []).map((e) => e.position);
-    const position = findPosition(targetPosition, occupiedPositions);
+    const position = findPosition(targetPosition, occupiedPositions, roundCount);
 
     const { error: insertError } = await supabase
       .from("leaderboard_entries")
@@ -113,8 +114,9 @@ async function savePopularRoundPlacement(game: Game, item: Item) {
     return !updateError;
   }
 
+  const { roundCount } = getGameSettings(game);
   const votes = await fetchVotesForRound(item.id, roundGeneration);
-  const { mode, isTie } = calculatePopularResults(votes);
+  const { mode, isTie } = calculatePopularResults(votes, roundCount);
 
   if (isTie || mode === null) {
     return bumpRoundGeneration(game);

@@ -174,6 +174,7 @@ export default function LobbyPage() {
               results_duration?: number;
               placement_duration?: number;
               settings_locked?: boolean;
+              description?: string | null;
             };
             if (updated.game_mode) {
               setGameMode(updated.game_mode);
@@ -185,7 +186,8 @@ export default function LobbyPage() {
               updated.round_count !== undefined ||
               updated.voting_duration !== undefined ||
               updated.results_duration !== undefined ||
-              updated.placement_duration !== undefined
+              updated.placement_duration !== undefined ||
+              updated.description !== undefined
             ) {
               setSettings((prev) =>
                 getGameSettings({
@@ -196,6 +198,10 @@ export default function LobbyPage() {
                     updated.results_duration ?? prev.resultsDuration,
                   placement_duration:
                     updated.placement_duration ?? prev.placementDuration,
+                  description:
+                    updated.description === null
+                      ? ""
+                      : (updated.description ?? prev.description),
                 })
               );
             }

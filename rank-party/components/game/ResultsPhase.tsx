@@ -7,6 +7,7 @@ type ResultsPhaseProps = {
   distribution: Record<number, number>;
   resultsSecondsLeft: number;
   resultsDuration: number;
+  rankCount: number;
   isPopular?: boolean;
   popularMode?: number | null;
   isTie?: boolean;
@@ -18,6 +19,7 @@ export function ResultsPhase({
   distribution,
   resultsSecondsLeft,
   resultsDuration,
+  rankCount,
   isPopular = false,
   popularMode = null,
   isTie = false,
@@ -33,19 +35,22 @@ export function ResultsPhase({
         </p>
       ) : (
         <p className="text-center text-lg font-bold">
-          Average: {avg.toFixed(2)} / 10
+          Average: {avg.toFixed(2)} / {rankCount}
         </p>
       )}
       <div className="space-y-1">
-        {Object.entries(distribution).map(([rank, count]) => (
-          <div key={rank} className="flex items-center gap-2">
-            <span className="w-4 font-bold">{rank}:</span>
-            <div
-              className="h-4 rounded-sm bg-primary"
-              style={{ width: Math.max(count * 10, count > 0 ? 4 : 0) }}
-            />
-          </div>
-        ))}
+        {Array.from({ length: rankCount }, (_, i) => i + 1).map((rank) => {
+          const count = distribution[rank] ?? 0;
+          return (
+            <div key={rank} className="flex items-center gap-2">
+              <span className="w-4 font-bold">{rank}:</span>
+              <div
+                className="h-4 rounded-sm bg-primary"
+                style={{ width: Math.max(count * 10, count > 0 ? 4 : 0) }}
+              />
+            </div>
+          );
+        })}
       </div>
       <div className="text-center">
         <CountdownBar

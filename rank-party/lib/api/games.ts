@@ -119,7 +119,7 @@ export async function setLobbySettings(
   gameId: string,
   settings: Partial<GameSettings>
 ) {
-  const patch: Record<string, number> = {};
+  const patch: Record<string, number | string | null> = {};
 
   if (settings.roundCount !== undefined) {
     patch.round_count = settings.roundCount;
@@ -132,6 +132,10 @@ export async function setLobbySettings(
   }
   if (settings.placementDuration !== undefined) {
     patch.placement_duration = settings.placementDuration;
+  }
+  if (settings.description !== undefined) {
+    const trimmed = settings.description.trim();
+    patch.description = trimmed || null;
   }
 
   const { error } = await supabase

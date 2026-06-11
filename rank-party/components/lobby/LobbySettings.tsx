@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
+  MAX_DESCRIPTION_LENGTH,
   MAX_ROUND_COUNT,
   MIN_ROUND_COUNT,
   type GameSettings,
@@ -29,10 +32,20 @@ export function LobbySettings({
   locked = false,
 }: LobbySettingsProps) {
   const canEdit = isHost && !locked;
+  const [descriptionDraft, setDescriptionDraft] = useState(settings.description);
+
+  useEffect(() => {
+    setDescriptionDraft(settings.description);
+  }, [settings.description]);
 
   function update<K extends keyof GameSettings>(key: K, value: GameSettings[K]) {
     if (!canEdit) return;
     onSettingsChange({ ...settings, [key]: value });
+  }
+
+  function saveDescription() {
+    if (!canEdit) return;
+    onSettingsChange({ ...settings, description: descriptionDraft });
   }
 
   return (
@@ -123,6 +136,26 @@ export function LobbySettings({
               className="h-11 rounded-xl"
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="game-description" className="text-sm font-medium">
+            Description <span className="text-muted-foreground">(optional)</span>
+          </label>
+          <Textarea
+            id="game-description"
+            rows={3}
+            placeholder="e.g. Rank these based on how funny they are at parties"
+            value={descriptionDraft}
+            disabled={!canEdit}
+            maxLength={MAX_DESCRIPTION_LENGTH}
+            onChange={(e) => setDescriptionDraft(e.target.value)}
+            onBlur={saveDescription}
+            className="resize-none rounded-xl"
+          />
+          <p className="text-xs text-muted-foreground">
+            Shown above the voting screen during the game.
+          </p>
         </div>
       </CardContent>
     </Card>

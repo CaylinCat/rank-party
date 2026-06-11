@@ -9,6 +9,7 @@ type VotingPhaseProps = {
   playerCount: number;
   secondsLeft: number;
   votingDuration: number;
+  rankCount: number;
   error: string | null;
   hasVoted: boolean;
   submittedRank: number | null;
@@ -19,12 +20,21 @@ type VotingPhaseProps = {
   disabledRanks?: number[];
 };
 
+function rankGridClass(rankCount: number) {
+  if (rankCount <= 3) return "grid-cols-3";
+  if (rankCount <= 5) return "grid-cols-5";
+  if (rankCount <= 6) return "grid-cols-3";
+  if (rankCount <= 8) return "grid-cols-4";
+  return "grid-cols-5";
+}
+
 export function VotingPhase({
   item,
   voteCount,
   playerCount,
   secondsLeft,
   votingDuration,
+  rankCount,
   error,
   hasVoted,
   submittedRank,
@@ -56,14 +66,14 @@ export function VotingPhase({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-5 gap-2">
-            {Array.from({ length: 10 }).map((_, i) => {
+          <div className={cn("grid w-full max-w-sm gap-2", rankGridClass(rankCount))}>
+            {Array.from({ length: rankCount }).map((_, i) => {
               const rank = i + 1;
               const isDisabled = disabledRanks.includes(rank);
 
               return (
                 <button
-                  key={i}
+                  key={rank}
                   type="button"
                   onClick={() => setSelectedRank(rank)}
                   disabled={submitting || isDisabled}

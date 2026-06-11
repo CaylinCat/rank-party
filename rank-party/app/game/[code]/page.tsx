@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { VotingPhase } from "@/components/game/VotingPhase";
 import { ResultsPhase } from "@/components/game/ResultsPhase";
 import { PlacementPhase } from "@/components/game/PlacementPhase";
+import { GameDescription } from "@/components/game/GameDescription";
 import { useGame } from "@/hooks/useGame";
 import { isPopularMode } from "@/lib/gameModes";
 
@@ -29,6 +30,7 @@ export default function GamePage() {
     resultsDuration,
     placementDuration,
     roundCount,
+    description,
     leaderboardEntries,
     avg,
     distribution,
@@ -87,6 +89,7 @@ export default function GamePage() {
             distribution={distribution}
             resultsSecondsLeft={resultsSecondsLeft}
             resultsDuration={resultsDuration}
+            rankCount={roundCount}
             isPopular={isPopularMode(game)}
             popularMode={popularMode}
             isTie={isTie}
@@ -113,6 +116,7 @@ export default function GamePage() {
 
   return (
     <PartyShell>
+      <GameDescription description={description} />
       <PartyCard className="max-w-lg mx-auto">
         <VotingPhase
           item={item}
@@ -120,6 +124,7 @@ export default function GamePage() {
           playerCount={playerCount}
           secondsLeft={secondsLeft}
           votingDuration={votingDuration}
+          rankCount={roundCount}
           error={error}
           hasVoted={hasVoted}
           submittedRank={submittedRank}

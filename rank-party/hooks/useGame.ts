@@ -29,16 +29,13 @@ import {
 } from "@/lib/processRound";
 import {
   DEFAULT_GAME_SETTINGS,
+  emptyRankDistribution,
   getGameSettings,
 } from "@/lib/gameSettings";
 import { getGameId, getPlayerId, isHost } from "@/lib/playerSession";
 import type { Game, Item, LeaderboardEntry } from "@/lib/types";
 import { useLobbyCode } from "./useLobbyCode";
 import { usePlayerPresence } from "./usePlayerPresence";
-
-const EMPTY_DISTRIBUTION = Object.fromEntries(
-  Array.from({ length: 10 }, (_, i) => [i + 1, 0])
-) as Record<number, number>;
 
 export function useGame() {
   const code = useLobbyCode();
@@ -58,7 +55,7 @@ export function useGame() {
   >([]);
   const [avg, setAvg] = useState(0);
   const [distribution, setDistribution] = useState<Record<number, number>>(
-    EMPTY_DISTRIBUTION
+    () => emptyRankDistribution(DEFAULT_GAME_SETTINGS.roundCount)
   );
   const [popularMode, setPopularMode] = useState<number | null>(null);
   const [isTie, setIsTie] = useState(false);
@@ -115,8 +112,10 @@ export function useGame() {
       game.round_generation ?? 0
     );
 
+    const { roundCount } = getGameSettings(game);
+
     if (isPopularMode(game)) {
-      const results = calculatePopularResults(votes || []);
+      const results = calculatePopularResults(votes || [], roundCount);
       setPopularMode(results.mode);
       setIsTie(results.isTie);
       setDistribution(results.distribution);
@@ -124,7 +123,7 @@ export function useGame() {
       return;
     }
 
-    const results = calculateResults(votes || []);
+    const results = calculateResults(votes || [], roundCount);
     setPopularMode(null);
     setIsTie(false);
     setAvg(results.avg);
@@ -132,10 +131,11 @@ export function useGame() {
   }, []);
 
   const clearResults = useCallback(() => {
+    const rankCount = getGameSettings(gameRef.current).roundCount;
     setAvg(0);
     setPopularMode(null);
     setIsTie(false);
-    setDistribution(EMPTY_DISTRIBUTION);
+    setDistribution(emptyRankDistribution(rankCount));
   }, []);
 
   const loadLeaderboard = useCallback(async (gameId: string) => {
@@ -477,10 +477,14 @@ export function useGame() {
     if (!game || !item || hasVoted || submitting || selectedRank === null)
       return;
 
-    if (
-      isPopularMode(game) &&
-      disabledRanks.includes(selectedRank)
-    ) {
+    const { roundCount } = getGameSettings(game);
+
+    if (selectedRank < 1 || selectedRank > roundCount) {
+      setError(`Pick a rank from 1 to ${roundCount}.`);
+      return;
+    }
+
+    if (isPopularMode(game) && disabledRanks.includes(selectedRank)) {
       setError("That rank is already taken on the tier list.");
       return;
     }
@@ -532,6 +536,7 @@ export function useGame() {
     resultsDuration: settings.resultsDuration,
     placementDuration: settings.placementDuration,
     roundCount: settings.roundCount,
+    description: settings.description,
     leaderboardEntries,
     avg,
     distribution,

@@ -1,10 +1,15 @@
-export function calculatePopularResults(votes: { rank: number }[]) {
-  const distribution: Record<number, number> = {};
+import { emptyRankDistribution } from "@/lib/gameSettings";
 
-  for (let i = 1; i <= 10; i++) distribution[i] = 0;
+export function calculatePopularResults(
+  votes: { rank: number }[],
+  rankCount: number
+) {
+  const distribution = emptyRankDistribution(rankCount);
 
   votes.forEach((v) => {
-    distribution[v.rank]++;
+    if (v.rank >= 1 && v.rank <= rankCount) {
+      distribution[v.rank]++;
+    }
   });
 
   const votedRanks = Object.entries(distribution)

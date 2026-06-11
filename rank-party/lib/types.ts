@@ -17,6 +17,7 @@ export type Game = {
   results_duration?: number;
   placement_duration?: number;
   settings_locked?: boolean;
+  description?: string | null;
   created_at?: string;
 };
 
