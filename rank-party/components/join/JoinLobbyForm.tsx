@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LobbyCodeTiles } from "@/components/join/LobbyCodeTiles";
 import { setPlayerSession } from "@/lib/playerSession";
-import { fetchGameByCode, isGameJoinable } from "@/lib/api/games";
+import { fetchLobbySessionByCode } from "@/lib/api/games";
 import { joinPlayer } from "@/lib/api/players";
 
 export function JoinLobbyForm() {
@@ -28,16 +28,10 @@ export function JoinLobbyForm() {
     setLoading(true);
     setError(null);
 
-    const { data: game, error: gameError } = await fetchGameByCode(code);
+    const { data: game, error: gameError } = await fetchLobbySessionByCode(code);
 
     if (gameError || !game) {
-      setError("Lobby not found.");
-      setLoading(false);
-      return;
-    }
-
-    if (!isGameJoinable(game.status)) {
-      setError("This game has already started.");
+      setError("Lobby not found or game already in progress.");
       setLoading(false);
       return;
     }

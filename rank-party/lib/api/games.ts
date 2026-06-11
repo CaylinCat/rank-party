@@ -1,32 +1,116 @@
 import { supabase } from "@/lib/supabase";
-import type { Game, GamePhase } from "@/lib/types";
+import type { Game, GamePhase, GameStatus } from "@/lib/types";
+
+function normalizeLobbyCode(code: string) {
+  return code.toUpperCase();
+}
 
 export function isGameJoinable(status: string) {
-  return status !== "active" && status !== "finished";
+  return status === "lobby";
 }
 
 export function isGameStarted(status: string) {
   return status === "active";
 }
 
-export async function fetchGameByCode(code: string) {
+export async function fetchSessionByCode(
+  code: string,
+  statuses: GameStatus[]
+) {
   const { data, error } = await supabase
     .from("games")
     .select("*")
-    .eq("lobby_code", code.toUpperCase())
-    .single();
+    .eq("lobby_code", normalizeLobbyCode(code))
+    .in("status", statuses)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return { data: data as Game | null, error };
+}
+
+export async function fetchLobbySessionByCode(code: string) {
+  return fetchSessionByCode(code, ["lobby"]);
+}
+
+export async function fetchActiveSessionByCode(code: string) {
+  return fetchSessionByCode(code, ["active"]);
+}
+
+export async function fetchLatestFinishedSessionByCode(code: string) {
+  return fetchSessionByCode(code, ["finished"]);
+}
+
+export async function fetchSessionById(gameId: string) {
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("id", gameId)
+    .maybeSingle();
+
+  return { data: data as Game | null, error };
+}
+
+/** @deprecated Use fetchLobbySessionByCode or fetchActiveSessionByCode */
+export async function fetchGameByCode(code: string) {
+  const lobby = await fetchLobbySessionByCode(code);
+  if (lobby.data) return lobby;
+
+  const active = await fetchActiveSessionByCode(code);
+  if (active.data) return active;
+
+  return fetchLatestFinishedSessionByCode(code);
 }
 
 export async function createGame(lobbyCode: string) {
   const { data, error } = await supabase
     .from("games")
-    .insert({ lobby_code: lobbyCode, status: "lobby" })
+    .insert({ lobby_code: normalizeLobbyCode(lobbyCode), status: "lobby" })
     .select()
     .single();
 
   return { data: data as Game | null, error };
+}
+
+export async function createNextSession(
+  lobbyCode: string,
+  previousGameId: string
+) {
+  const { data: newGame, error: createError } = await supabase
+    .from("games")
+    .insert({
+      lobby_code: normalizeLobbyCode(lobbyCode),
+      status: "lobby",
+    })
+    .select()
+    .single();
+
+  if (createError || !newGame) {
+    return { data: null, error: createError };
+  }
+
+  const { error: migrateError } = await supabase
+    .from("players")
+    .update({ game_id: newGame.id })
+    .eq("game_id", previousGameId);
+
+  return { data: newGame as Game, error: migrateError };
+}
+
+/** Opens a new lobby session after a finished game, reusing the same lobby code. */
+export async function ensureLobbySession(lobbyCode: string) {
+  const existing = await fetchLobbySessionByCode(lobbyCode);
+  if (existing.data) return existing;
+
+  const { data: finished, error: finishedError } =
+    await fetchLatestFinishedSessionByCode(lobbyCode);
+
+  if (finishedError) return { data: null, error: finishedError };
+  if (!finished) {
+    return { data: null, error: new Error("Lobby not found.") };
+  }
+
+  return createNextSession(lobbyCode, finished.id);
 }
 
 export async function fetchItems(gameId: string) {
@@ -39,34 +123,7 @@ export async function fetchItems(gameId: string) {
   return { data, error };
 }
 
-async function clearGameRoundData(gameId: string) {
-  const [votes, entries, items] = await Promise.all([
-    supabase.from("votes").delete().eq("game_id", gameId),
-    supabase.from("leaderboard_entries").delete().eq("game_id", gameId),
-    supabase.from("items").delete().eq("game_id", gameId),
-  ]);
-
-  const error = votes.error ?? entries.error ?? items.error;
-  return { error };
-}
-
-export async function prepareRematch(gameId: string) {
-  // Best-effort; host startGame will fully clear if this fails (e.g. RLS)
-  await clearGameRoundData(gameId);
-
-  const { error } = await supabase
-    .from("games")
-    .update({ status: "lobby", current_item_index: 0 })
-    .eq("id", gameId)
-    .eq("status", "finished");
-
-  return { error };
-}
-
 export async function startGame(gameId: string, items: string[]) {
-  const { error: clearError } = await clearGameRoundData(gameId);
-  if (clearError) return { error: clearError };
-
   const { error: itemsError } = await supabase.from("items").insert(
     items.map((text, i) => ({
       game_id: gameId,
@@ -84,7 +141,8 @@ export async function startGame(gameId: string, items: string[]) {
       status: "active",
       current_item_index: 0,
     })
-    .eq("id", gameId);
+    .eq("id", gameId)
+    .eq("status", "lobby");
 
   return { error };
 }

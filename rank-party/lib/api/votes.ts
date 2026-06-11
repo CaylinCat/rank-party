@@ -21,11 +21,14 @@ export async function fetchVoteProgress(
   gameId: string,
   itemId: string
 ): Promise<VoteProgress> {
+  const cutoff = new Date(Date.now() - 30_000).toISOString();
+
   const [{ count }, { data: votes }] = await Promise.all([
     supabase
       .from("players")
       .select("*", { count: "exact", head: true })
-      .eq("game_id", gameId),
+      .eq("game_id", gameId)
+      .gt("last_seen", cutoff),
     supabase.from("votes").select("player_id").eq("item_id", itemId),
   ]);
 

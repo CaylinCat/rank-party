@@ -4,11 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, RotateCcw } from "lucide-react";
-import { fetchGameByCode } from "@/lib/api/games";
+import {
+  ensureLobbySession,
+  fetchLatestFinishedSessionByCode,
+  fetchSessionById,
+} from "@/lib/api/games";
 import {
   fetchLeaderboard,
   formatTierListText,
 } from "@/lib/api/leaderboard";
+import { getGameId } from "@/lib/playerSession";
 import { useLobbyCode } from "@/hooks/useLobbyCode";
 import { PartyShell } from "@/components/shell/PartyShell";
 import { PartyCard } from "@/components/shell/PartyCard";
@@ -24,6 +29,7 @@ export default function LeaderboardPage() {
   const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [playAgainLoading, setPlayAgainLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,15 +37,33 @@ export default function LeaderboardPage() {
       setLoading(true);
       setError(null);
 
-      const { data: game, error: gameError } = await fetchGameByCode(code);
+      const storedGameId = getGameId();
+      let sessionId: string | null = null;
 
-      if (gameError || !game) {
-        setError("Game not found.");
-        setLoading(false);
-        return;
+      if (storedGameId) {
+        const { data: storedSession } = await fetchSessionById(storedGameId);
+        if (
+          storedSession?.lobby_code === code.toUpperCase() &&
+          storedSession.status === "finished"
+        ) {
+          sessionId = storedSession.id;
+        }
       }
 
-      const { data, error: entriesError } = await fetchLeaderboard(game.id);
+      if (!sessionId) {
+        const { data: finished, error: gameError } =
+          await fetchLatestFinishedSessionByCode(code);
+
+        if (gameError || !finished) {
+          setError("Game not found.");
+          setLoading(false);
+          return;
+        }
+
+        sessionId = finished.id;
+      }
+
+      const { data, error: entriesError } = await fetchLeaderboard(sessionId);
 
       if (entriesError) {
         setError(entriesError.message);
@@ -54,6 +78,21 @@ export default function LeaderboardPage() {
     load();
   }, [code]);
 
+  async function handlePlayAgain() {
+    setPlayAgainLoading(true);
+    setError(null);
+
+    const { error: sessionError } = await ensureLobbySession(code);
+
+    if (sessionError) {
+      setError(sessionError.message);
+      setPlayAgainLoading(false);
+      return;
+    }
+
+    router.push(`/lobby/${code}`);
+  }
+
   if (loading) {
     return (
       <PartyShell>
@@ -62,7 +101,7 @@ export default function LeaderboardPage() {
     );
   }
 
-  if (error) {
+  if (error && entries.length === 0) {
     return (
       <PartyShell>
         <PartyCard className="max-w-md mx-auto">
@@ -88,13 +127,15 @@ export default function LeaderboardPage() {
           <div className="text-center">
             <CopyButton text={formatTierListText(entries)} />
           </div>
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
           <Button
             size="lg"
             className="w-full rounded-xl"
-            onClick={() => router.push(`/lobby/${code}`)}
+            disabled={playAgainLoading}
+            onClick={handlePlayAgain}
           >
             <RotateCcw className="size-4" />
-            Play again
+            {playAgainLoading ? "Setting up lobby..." : "Play again"}
           </Button>
           <Link href="/" className="block">
             <Button variant="outline" size="lg" className="w-full rounded-xl">

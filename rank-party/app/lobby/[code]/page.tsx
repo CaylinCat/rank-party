@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPlayerId, setPlayerSession } from "@/lib/playerSession";
-import { parseItemList } from "@/lib/constants";
+import { parseItemList, PRESENCE_HEARTBEAT_MS } from "@/lib/constants";
+import { DEFAULT_GAME_MODE, type GameMode } from "@/lib/gameModes";
 import {
-  fetchGameByCode,
-  isGameStarted,
-  prepareRematch,
+  ensureLobbySession,
+  fetchActiveSessionByCode,
+  fetchLobbySessionByCode,
   startGame,
 } from "@/lib/api/games";
 import { fetchPlayers, fetchCurrentPlayer } from "@/lib/api/players";
 import { firePartyConfetti } from "@/lib/confetti";
+import { usePlayerPresence } from "@/hooks/usePlayerPresence";
 import { useLobbyCode } from "@/hooks/useLobbyCode";
 import { PartyShell } from "@/components/shell/PartyShell";
 import { PartyCard } from "@/components/shell/PartyCard";
@@ -31,6 +33,10 @@ export default function LobbyPage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [itemListInput, setItemListInput] = useState("");
+  const [gameMode, setGameMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  usePlayerPresence();
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
@@ -40,28 +46,31 @@ export default function LobbyPage() {
       setLoading(true);
       setError(null);
 
-      const { data: game, error: gameError } = await fetchGameByCode(code);
-
-      if (gameError || !game) {
-        if (!cancelled) {
-          setError("Lobby not found.");
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (isGameStarted(game.status)) {
+      const { data: activeSession } = await fetchActiveSessionByCode(code);
+      if (activeSession) {
         if (!cancelled) {
           router.push(`/game/${code}`);
         }
         return;
       }
 
-      const gameId = game.id;
-
-      if (game.status === "finished") {
-        await prepareRematch(gameId);
+      let game = (await fetchLobbySessionByCode(code)).data;
+      if (!game) {
+        const { data: nextSession, error: sessionError } =
+          await ensureLobbySession(code);
+        if (sessionError || !nextSession) {
+          if (!cancelled) {
+            setError("Lobby not found.");
+            setLoading(false);
+          }
+          return;
+        }
+        game = nextSession;
       }
+
+      const gameId = game.id;
+      setSessionId(gameId);
+
       const { data: playerList, error: playersError } =
         await fetchPlayers(gameId);
 
@@ -109,6 +118,36 @@ export default function LobbyPage() {
           {
             event: "UPDATE",
             schema: "public",
+            table: "players",
+            filter: `game_id=eq.${gameId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Player;
+            setPlayers((prev) =>
+              prev.map((p) => (p.id === updated.id ? updated : p))
+            );
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "players",
+            filter: `game_id=eq.${gameId}`,
+          },
+          (payload) => {
+            const removed = payload.old as { id?: string };
+            if (removed.id) {
+              setPlayers((prev) => prev.filter((p) => p.id !== removed.id));
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
             table: "games",
             filter: `id=eq.${gameId}`,
           },
@@ -132,6 +171,18 @@ export default function LobbyPage() {
     };
   }, [code, router]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+
+    async function refreshPlayers() {
+      const { data } = await fetchPlayers(sessionId);
+      if (data) setPlayers(data);
+    }
+
+    const interval = setInterval(refreshPlayers, PRESENCE_HEARTBEAT_MS);
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
   async function handleStartGame() {
     if (!isCurrentHost) {
       setError("Only the host can start the game.");
@@ -147,7 +198,7 @@ export default function LobbyPage() {
     setStarting(true);
     setError(null);
 
-    const { data: game, error: gameError } = await fetchGameByCode(code);
+    const { data: game, error: gameError } = await fetchLobbySessionByCode(code);
 
     if (gameError || !game) {
       setError("Lobby not found.");
@@ -203,6 +254,8 @@ export default function LobbyPage() {
         isCurrentHost={isCurrentHost}
         itemListInput={itemListInput}
         onItemListChange={setItemListInput}
+        gameMode={gameMode}
+        onGameModeChange={setGameMode}
         starting={starting}
         error={error}
         onStartGame={handleStartGame}

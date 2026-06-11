@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { isPlayerVisible } from "@/lib/playerPresence";
 import type { Player } from "@/lib/types";
 
 export async function createHostPlayer(gameId: string, name: string) {
@@ -27,7 +28,8 @@ export async function fetchPlayers(gameId: string) {
     .select("*")
     .eq("game_id", gameId);
 
-  return { data: (data as Player[]) || [], error };
+  const players = ((data as Player[]) || []).filter(isPlayerVisible);
+  return { data: players, error };
 }
 
 export async function fetchCurrentPlayer(gameId: string, playerId: string) {

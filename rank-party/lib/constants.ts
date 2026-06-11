@@ -3,6 +3,10 @@ export const VOTING_DURATION = 30;
 export const RESULTS_DURATION = 5;
 export const PLACEMENT_DURATION = 5;
 
+export const PRESENCE_HEARTBEAT_MS = 10_000;
+export const PRESENCE_ACTIVE_MS = 30_000;
+export const PRESENCE_STALE_MS = 60_000;
+
 export const DEFAULT_ITEMS = [
   "Bob is cool",
   "Cats rule",

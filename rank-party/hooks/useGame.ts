@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { calculateResults } from "@/lib/calculateResults";
-import { fetchGameByCode, fetchItems, setGamePhase } from "@/lib/api/games";
+import {
+  fetchActiveSessionByCode,
+  fetchItems,
+  fetchLatestFinishedSessionByCode,
+  fetchLobbySessionByCode,
+  fetchSessionById,
+  setGamePhase,
+} from "@/lib/api/games";
 import {
   fetchExistingVote,
   fetchVoteProgress,
@@ -22,9 +29,10 @@ import {
   RESULTS_DURATION,
   VOTING_DURATION,
 } from "@/lib/constants";
-import { getPlayerId, isHost } from "@/lib/playerSession";
+import { getGameId, getPlayerId, isHost } from "@/lib/playerSession";
 import type { Game, Item, LeaderboardEntry } from "@/lib/types";
 import { useLobbyCode } from "./useLobbyCode";
+import { usePlayerPresence } from "./usePlayerPresence";
 
 const EMPTY_DISTRIBUTION = Object.fromEntries(
   Array.from({ length: 10 }, (_, i) => [i + 1, 0])
@@ -33,6 +41,8 @@ const EMPTY_DISTRIBUTION = Object.fromEntries(
 export function useGame() {
   const code = useLobbyCode();
   const router = useRouter();
+
+  usePlayerPresence();
 
   const [game, setGame] = useState<Game | null>(null);
   const [item, setItem] = useState<Item | null>(null);
@@ -135,18 +145,47 @@ export function useGame() {
   const load = useCallback(async () => {
     setError(null);
 
-    const { data: g, error: gameError } = await fetchGameByCode(code);
-    if (gameError) {
-      console.error(gameError);
-      setError(gameError.message);
+    const { data: active, error: activeError } =
+      await fetchActiveSessionByCode(code);
+    if (activeError) {
+      console.error(activeError);
+    }
+
+    let g = active;
+
+    if (!g) {
+      const gameId = getGameId();
+      if (gameId) {
+        const { data: session } = await fetchSessionById(gameId);
+        if (
+          session?.lobby_code === code.toUpperCase() &&
+          session.status === "finished"
+        ) {
+          g = session;
+        }
+      }
+    }
+
+    if (!g) {
+      const { data: finished } = await fetchLatestFinishedSessionByCode(code);
+      g = finished;
+    }
+
+    if (!g) {
+      const { data: lobby } = await fetchLobbySessionByCode(code);
+      if (lobby) {
+        router.push(`/lobby/${code}`);
+        return null;
+      }
+      setError("Game not found.");
       setLoading(false);
       return null;
     }
 
-    if (!g) {
-      setError("Game not found.");
+    if (g.status === "finished" || g.phase === "finished") {
+      setGame(g);
       setLoading(false);
-      return null;
+      return g;
     }
 
     const { data: items, error: itemsError } = await fetchItems(g.id);
@@ -207,6 +246,7 @@ export function useGame() {
     loadVoteProgress,
     maybeAutoAdvanceToResults,
     resetRoundUi,
+    router,
   ]);
 
   useEffect(() => {
@@ -301,7 +341,13 @@ export function useGame() {
         setResultsSecondsLeft((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
-            if (isHost()) saveRoundPlacement(game, item);
+            if (isHost()) {
+              const g = gameRef.current;
+              const currentItem = itemRef.current;
+              if (g && currentItem) {
+                void saveRoundPlacement(g, currentItem).then(() => load());
+              }
+            }
             return 0;
           }
           return prev - 1;
@@ -316,7 +362,18 @@ export function useGame() {
         setPlacementSecondsLeft((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
-            if (isHost()) advanceToNextRound(game);
+            if (isHost()) {
+              const g = gameRef.current;
+              if (g) {
+                void advanceToNextRound(g).then(async (ok) => {
+                  if (!ok) return;
+                  const updated = await load();
+                  if (updated?.phase === "finished") {
+                    router.push(`/leaderboard/${code}`);
+                  }
+                });
+              }
+            }
             return 0;
           }
           return prev - 1;
@@ -339,7 +396,16 @@ export function useGame() {
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [game?.phase, game?.id, game?.current_item_index, item?.id, goToResults]);
+  }, [
+    code,
+    game?.phase,
+    game?.id,
+    game?.current_item_index,
+    item?.id,
+    goToResults,
+    load,
+    router,
+  ]);
 
   async function submitVote() {
     if (!game || !item || hasVoted || submitting || selectedRank === null)
