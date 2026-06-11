@@ -11,14 +11,18 @@ export function CountdownBar({
 }: CountdownBarProps) {
   return (
     <>
-      <p className="text-lg font-medium tabular-nums">{secondsLeft}s</p>
-      <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
+      <p className="text-lg font-bold tabular-nums text-foreground">
+        {secondsLeft}s
+      </p>
+      <div className="mx-auto h-2 w-64 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full bg-black transition-all duration-1000 ease-linear"
+          className="h-full bg-primary transition-all duration-1000 ease-linear"
           style={{ width: `${(secondsLeft / duration) * 100}%` }}
         />
       </div>
-      <p className="text-sm text-gray-500">{label}</p>
+      {label && (
+        <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+      )}
     </>
   );
 }

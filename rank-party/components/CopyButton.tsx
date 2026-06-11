@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type CopyButtonProps = {
   text: string;
@@ -21,12 +23,20 @@ export function CopyButton({ text, label = "Copy tier list" }: CopyButtonProps) 
   }
 
   return (
-    <button
+    <Button
       type="button"
       onClick={handleCopy}
-      className="px-4 py-2 bg-black text-white rounded disabled:opacity-50"
+      className="rounded-xl"
+      size="lg"
     >
-      {copied ? "Copied!" : label}
-    </button>
+      {copied ? (
+        <>
+          <Check className="size-4" />
+          Copied!
+        </>
+      ) : (
+        label
+      )}
+    </Button>
   );
 }

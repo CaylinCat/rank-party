@@ -3,5 +3,9 @@ type ErrorStateProps = {
 };
 
 export function ErrorState({ message }: ErrorStateProps) {
-  return <p className="text-red-600">{message}</p>;
+  return (
+    <p className="text-center text-sm font-semibold text-destructive">
+      {message}
+    </p>
+  );
 }

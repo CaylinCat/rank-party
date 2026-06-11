@@ -15,3 +15,27 @@ export const DEFAULT_ITEMS = [
   "AI will take over",
   "This game is chaotic",
 ];
+
+export function parseItemList(input: string): {
+  items: string[] | null;
+  error?: string;
+} {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { items: [...DEFAULT_ITEMS] };
+  }
+
+  const items = trimmed
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (items.length !== ROUND_COUNT) {
+    return {
+      items: null,
+      error: `Enter exactly ${ROUND_COUNT} items, separated by commas.`,
+    };
+  }
+
+  return { items };
+}

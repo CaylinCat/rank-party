@@ -1,6 +1,7 @@
 "use client";
 
-import { PageShell } from "@/components/PageShell";
+import { PartyShell } from "@/components/shell/PartyShell";
+import { PartyCard } from "@/components/shell/PartyCard";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
 import { VotingPhase } from "@/components/game/VotingPhase";
@@ -32,17 +33,19 @@ export default function GamePage() {
 
   if (loading) {
     return (
-      <PageShell>
+      <PartyShell>
         <LoadingState message="Loading game..." />
-      </PageShell>
+      </PartyShell>
     );
   }
 
   if (error && !game) {
     return (
-      <PageShell>
-        <ErrorState message={error} />
-      </PageShell>
+      <PartyShell>
+        <PartyCard className="max-w-md mx-auto">
+          <ErrorState message={error} />
+        </PartyCard>
+      </PartyShell>
     );
   }
 
@@ -50,53 +53,67 @@ export default function GamePage() {
 
   if (game.phase === "finished") {
     return (
-      <PageShell>
+      <PartyShell>
         <LoadingState message="Loading leaderboard..." />
-      </PageShell>
+      </PartyShell>
     );
   }
 
   if (!item) {
     return (
-      <PageShell>
-        <ErrorState message="No item found for this round." />
-      </PageShell>
+      <PartyShell>
+        <PartyCard className="max-w-md mx-auto">
+          <ErrorState message="No item found for this round." />
+        </PartyCard>
+      </PartyShell>
     );
   }
 
   if (game.phase === "results") {
     return (
-      <ResultsPhase
-        item={item}
-        avg={avg}
-        distribution={distribution}
-        resultsSecondsLeft={resultsSecondsLeft}
-      />
+      <PartyShell>
+        <PartyCard className="max-w-md mx-auto">
+          <ResultsPhase
+            item={item}
+            avg={avg}
+            distribution={distribution}
+            resultsSecondsLeft={resultsSecondsLeft}
+          />
+        </PartyCard>
+      </PartyShell>
     );
   }
 
   if (game.phase === "placement") {
     return (
-      <PlacementPhase
-        leaderboardEntries={leaderboardEntries}
-        placementSecondsLeft={placementSecondsLeft}
-      />
+      <PartyShell>
+        <PartyCard className="max-w-md mx-auto">
+          <PlacementPhase
+            leaderboardEntries={leaderboardEntries}
+            placementSecondsLeft={placementSecondsLeft}
+          />
+        </PartyCard>
+      </PartyShell>
     );
   }
 
   return (
-    <VotingPhase
-      item={item}
-      voteCount={voteCount}
-      playerCount={playerCount}
-      secondsLeft={secondsLeft}
-      error={error}
-      hasVoted={hasVoted}
-      submittedRank={submittedRank}
-      selectedRank={selectedRank}
-      setSelectedRank={setSelectedRank}
-      submitting={submitting}
-      submitVote={submitVote}
-    />
+    <PartyShell>
+      <PartyCard className="max-w-lg mx-auto">
+        <VotingPhase
+          item={item}
+          voteCount={voteCount}
+          playerCount={playerCount}
+          secondsLeft={secondsLeft}
+          error={error}
+          hasVoted={hasVoted}
+          submittedRank={submittedRank}
+          selectedRank={selectedRank}
+          setSelectedRank={setSelectedRank}
+          submitting={submitting}
+          submitVote={submitVote}
+        />
+      </PartyCard>
+    </PartyShell>
   );
 }

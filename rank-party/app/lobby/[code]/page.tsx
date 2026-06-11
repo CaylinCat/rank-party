@@ -4,14 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getPlayerId, setPlayerSession } from "@/lib/playerSession";
+import { parseItemList } from "@/lib/constants";
 import {
   fetchGameByCode,
   isGameStarted,
+  prepareRematch,
   startGame,
 } from "@/lib/api/games";
 import { fetchPlayers, fetchCurrentPlayer } from "@/lib/api/players";
+import { firePartyConfetti } from "@/lib/confetti";
 import { useLobbyCode } from "@/hooks/useLobbyCode";
-import { PageShell } from "@/components/PageShell";
+import { PartyShell } from "@/components/shell/PartyShell";
+import { PartyCard } from "@/components/shell/PartyCard";
+import { LobbyRoom } from "@/components/lobby/LobbyRoom";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
 import type { Player } from "@/lib/types";
@@ -25,6 +30,7 @@ export default function LobbyPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [itemListInput, setItemListInput] = useState("");
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
@@ -52,6 +58,10 @@ export default function LobbyPage() {
       }
 
       const gameId = game.id;
+
+      if (game.status === "finished") {
+        await prepareRematch(gameId);
+      }
       const { data: playerList, error: playersError } =
         await fetchPlayers(gameId);
 
@@ -104,7 +114,7 @@ export default function LobbyPage() {
           },
           (payload) => {
             const updated = payload.new as { status?: string };
-            if (updated.status === "active" || updated.status === "finished") {
+            if (updated.status === "active") {
               router.push(`/game/${code}`);
             }
           }
@@ -145,7 +155,14 @@ export default function LobbyPage() {
       return;
     }
 
-    const { error: startError } = await startGame(game.id);
+    const { items, error: parseError } = parseItemList(itemListInput);
+    if (!items) {
+      setError(parseError ?? "Invalid item list.");
+      setStarting(false);
+      return;
+    }
+
+    const { error: startError } = await startGame(game.id, items);
 
     if (startError) {
       console.error(startError);
@@ -154,54 +171,42 @@ export default function LobbyPage() {
       return;
     }
 
+    firePartyConfetti();
     router.push(`/game/${code}`);
   }
 
   if (loading) {
     return (
-      <PageShell>
-        <LoadingState message="Loading lobby..." />
-      </PageShell>
+      <PartyShell fullHeight>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <LoadingState message="Loading lobby..." />
+        </div>
+      </PartyShell>
     );
   }
 
   if (error && players.length === 0) {
     return (
-      <PageShell>
-        <ErrorState message={error} />
-      </PageShell>
+      <PartyShell>
+        <PartyCard className="max-w-md mx-auto">
+          <ErrorState message={error} />
+        </PartyCard>
+      </PartyShell>
     );
   }
 
   return (
-    <PageShell>
-      <div className="text-center space-y-4">
-        <h1 className="text-3xl font-bold">Lobby</h1>
-        <p className="text-gray-600">Code: {code}</p>
-
-        <ul className="space-y-1">
-          {players.map((player) => (
-            <li key={player.id}>
-              {player.name}
-              {player.is_host && " (host)"}
-            </li>
-          ))}
-        </ul>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        {isCurrentHost ? (
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-            onClick={handleStartGame}
-            disabled={starting}
-          >
-            {starting ? "Starting..." : "Start Game"}
-          </button>
-        ) : (
-          <p className="text-sm text-gray-500">Waiting for host to start...</p>
-        )}
-      </div>
-    </PageShell>
+    <PartyShell fullHeight>
+      <LobbyRoom
+        code={code}
+        players={players}
+        isCurrentHost={isCurrentHost}
+        itemListInput={itemListInput}
+        onItemListChange={setItemListInput}
+        starting={starting}
+        error={error}
+        onStartGame={handleStartGame}
+      />
+    </PartyShell>
   );
 }

@@ -13,14 +13,16 @@ export function PlacementPhase({
   placementSecondsLeft,
 }: PlacementPhaseProps) {
   return (
-    <div className="h-screen flex flex-col items-center justify-center px-4">
-      <div className="space-y-4 w-96">
-        <h1 className="text-3xl font-bold text-center">Rankings</h1>
-        <TierList entries={leaderboardEntries} showEmptySlots />
+    <div className="space-y-4">
+      <h1 className="text-center font-display text-3xl font-extrabold">
+        Rankings
+      </h1>
+      <TierList entries={leaderboardEntries} showEmptySlots />
+      <div className="text-center">
         <CountdownBar
           secondsLeft={placementSecondsLeft}
           duration={PLACEMENT_DURATION}
-          label={`Next round in ${placementSecondsLeft} second${placementSecondsLeft === 1 ? "" : "s"}...`}
+          label=""
         />
       </div>
     </div>

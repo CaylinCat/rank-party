@@ -27,7 +27,7 @@ export function TierList({
         return (
           <li
             key={position}
-            className={`text-lg ${entry ? "" : "text-gray-300"}`}
+            className={`text-lg font-semibold ${entry ? "" : "text-muted-foreground/50"}`}
           >
             {position}.{" "}
             {entry ? (entry.items?.text ?? "Unknown") : "—"}

@@ -176,6 +176,9 @@ export function useGame() {
     setItem(currentItem);
 
     if (g.phase === "voting" && currentItem) {
+      if ((g.current_item_index ?? 0) === 0) {
+        setLeaderboardEntries([]);
+      }
       const playerId = getPlayerId();
       const progress = await loadVoteProgress(g.id, currentItem.id);
       if (playerId) {

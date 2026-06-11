@@ -1,6 +1,8 @@
+import { Button } from "@/components/ui/button";
 import { CountdownBar } from "@/components/CountdownBar";
 import { VOTING_DURATION } from "@/lib/constants";
 import type { Item } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type VotingPhaseProps = {
   item: Item;
@@ -30,10 +32,10 @@ export function VotingPhase({
   submitVote,
 }: VotingPhaseProps) {
   return (
-    <div className="h-screen flex flex-col items-center justify-center space-y-6 px-4">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">{item.text}</h1>
-        <p className="text-sm text-gray-600">
+    <div className="flex flex-col items-center space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="font-display text-3xl font-extrabold">{item.text}</h1>
+        <p className="text-sm font-semibold text-muted-foreground">
           {voteCount}/{playerCount} players voted
         </p>
         <CountdownBar
@@ -43,10 +45,12 @@ export function VotingPhase({
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm font-semibold text-destructive">{error}</p>}
 
       {hasVoted ? (
-        <p className="text-sm text-gray-600">Vote submitted: {submittedRank}</p>
+        <p className="text-sm font-semibold text-muted-foreground">
+          Vote submitted: {submittedRank}
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-5 gap-2">
@@ -58,23 +62,27 @@ export function VotingPhase({
                   type="button"
                   onClick={() => setSelectedRank(rank)}
                   disabled={submitting}
-                  className={`p-3 border rounded disabled:opacity-50 ${
-                    selectedRank === rank ? "bg-black text-white" : ""
-                  }`}
+                  className={cn(
+                    "rounded-xl border-2 p-3 font-bold transition-colors disabled:opacity-50",
+                    selectedRank === rank
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted"
+                  )}
                 >
                   {rank}
                 </button>
               );
             })}
           </div>
-          <button
+          <Button
             type="button"
             onClick={submitVote}
             disabled={submitting || selectedRank === null}
-            className="px-6 py-3 bg-black text-white rounded-xl disabled:opacity-50"
+            size="lg"
+            className="rounded-xl px-8"
           >
             {submitting ? "Submitting..." : "Submit Vote"}
-          </button>
+          </Button>
         </>
       )}
     </div>
